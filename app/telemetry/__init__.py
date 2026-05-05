@@ -76,7 +76,7 @@ class Telemetry:
                 setpoint.position.x,
                 setpoint.position.y,
                 setpoint.position.z,
-                setpoint.yaw
+                np.rad2deg(setpoint.yaw)
             )
 
     def disconnect(self) -> None:
@@ -104,9 +104,9 @@ class Telemetry:
                 data["stateEstimate.z"]
             )
             rotation = glm.vec3(
-                data["stabilizer.roll"],
-                data["stabilizer.pitch"],
-                data["stabilizer.yaw"]
+                np.deg2rad(data["stabilizer.roll"]),
+                np.deg2rad(data["stabilizer.pitch"]),
+                np.deg2rad(data["stabilizer.yaw"])
             )
             battery = float(data["pm.batteryLevel"]) / 100.0
 

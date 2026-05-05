@@ -19,7 +19,7 @@ class Input(ABC):
 
     def to_setpoint(self, measurement: Measurement) -> Setpoint:
         xy = glm.rotateZ(glm.vec3(self.position.x, self.position.y, 0.0), measurement.rotation.z).xy
-        xy = xy + measurement.position.xy
+        xy = measurement.position.xy + xy
         z = np.max([0.0, measurement.position.z + self.position.z])
         yaw = wrap(measurement.rotation.z + self.yaw)
         return Setpoint(glm.vec3(xy.x, xy.y, z), yaw)

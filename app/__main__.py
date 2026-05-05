@@ -1,5 +1,4 @@
 import pygame
-import os
 import numpy as np
 from enum import Enum
 from pyglm import glm
@@ -159,11 +158,9 @@ def main():
         match control_mode:
             case ControlMode.KEYBOARD:
                 keyboard.update()
-                setpoint = keyboard.to_setpoint(measurement)
                 manual_input = keyboard
             case ControlMode.CONTROLLER:
                 controller.update()
-                setpoint = controller.to_setpoint(measurement)
                 manual_input = controller
             case ControlMode.PLANNER:
                 # setpoint = planner.update(measurement, frame)
@@ -174,6 +171,9 @@ def main():
         if simulation:
             telemetry.simulate(manual_input)
             camera.simulate(measurement)
+
+        # Compute setpoint
+        setpoint = manual_input.to_setpoint(measurement)
 
         # Compute relative input for indicators
         relative_yaw = wrap(setpoint.yaw - measurement.rotation.z)
@@ -222,7 +222,7 @@ def main():
             logger.log(measurement, frame)
 
         # Update telemetry input command
-        #telemetry.set_setpoint(setpoint)
+        telemetry.set_setpoint(setpoint)
     
     camera.stop()
     gui.quit()
