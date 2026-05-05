@@ -1,8 +1,9 @@
 from pygame import Surface
+from typing import Self
 
 class Widget:
 
-    instances: list['Widget'] = []
+    instances: list[Self] = []
 
     def __init__(self, zindex: int = 0) -> None:
         self._zindex = zindex

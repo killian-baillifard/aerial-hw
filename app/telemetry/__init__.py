@@ -15,7 +15,7 @@ from app.sync import Atomic
 
 class Telemetry:
 
-    URI = uri_helper.uri_from_env(default='radio://0/20/2M/E7E7E7E702')
+    URI = uri_helper.uri_from_env(default="radio://0/20/2M/E7E7E7E702")
     PERIOD_MS = 20
 
     class State(Enum):
@@ -27,18 +27,18 @@ class Telemetry:
         logging.basicConfig(level=logging.ERROR)
         cflib.crtp.init_drivers()
 
-        self.log_config = LogConfig('Telemetry', Telemetry.PERIOD_MS)
-        self.log_config.add_variable('stateEstimate.x')
-        self.log_config.add_variable('stateEstimate.y')
-        self.log_config.add_variable('stateEstimate.z')
-        self.log_config.add_variable('stabilizer.roll')
-        self.log_config.add_variable('stabilizer.pitch')
-        self.log_config.add_variable('stabilizer.yaw')
-        self.log_config.add_variable('pm.batteryLevel')
+        self.log_config = LogConfig("Telemetry", Telemetry.PERIOD_MS)
+        self.log_config.add_variable("stateEstimate.x")
+        self.log_config.add_variable("stateEstimate.y")
+        self.log_config.add_variable("stateEstimate.z")
+        self.log_config.add_variable("stabilizer.roll")
+        self.log_config.add_variable("stabilizer.pitch")
+        self.log_config.add_variable("stabilizer.yaw")
+        self.log_config.add_variable("pm.batteryLevel")
         self.log_config.data_received_cb.add_callback(self.on_data_received)
         self.log_config.error_cb.add_callback(self.on_data_error)
         
-        self.crazyflie = Crazyflie(rw_cache=os.path.join('cache'))
+        self.crazyflie = Crazyflie(rw_cache=os.path.join("cache"))
         self.crazyflie.connected.add_callback(self.on_connected)
         self.crazyflie.disconnected.add_callback(self.on_disconnected)
         self.crazyflie.connection_failed.add_callback(self.on_connection_failed)
@@ -92,32 +92,32 @@ class Telemetry:
         except KeyError as e:
             print(f"Could not start log configuration, '{e}' not found in TOC")
         except AttributeError:
-            print('Could not add Stabilizer log config, bad configuration')
+            print("Could not add Stabilizer log config, bad configuration")
 
     def on_data_received(self, timestamp, data, logconf):
 
         # Store new measurement
         try:
             position = glm.vec3(
-                data['stateEstimate.x'],
-                data['stateEstimate.y'],
-                data['stateEstimate.z']
+                data["stateEstimate.x"],
+                data["stateEstimate.y"],
+                data["stateEstimate.z"]
             )
             rotation = glm.vec3(
-                data['stabilizer.roll'],
-                data['stabilizer.pitch'],
-                data['stabilizer.yaw']
+                data["stabilizer.roll"],
+                data["stabilizer.pitch"],
+                data["stabilizer.yaw"]
             )
-            battery = float(data['pm.batteryLevel']) / 100.0
+            battery = float(data["pm.batteryLevel"]) / 100.0
 
             # Drain queue and push new measurement
             self.measurement.set(Measurement(timestamp, position, rotation, battery))
 
         # Print missing field and available fields
         except KeyError as e:
-            print(f"'{e}' key not found in received data, available fields in [{timestamp}][{logconf.name}] are : ", end='')
+            print(f"'{e}' key not found in received data, available fields in [{timestamp}][{logconf.name}] are : ", end="")
             for name, value in data.items():
-                print(f'{name}: {float(value):3.3f} ', end='')
+                print(f"{name}: {float(value):3.3f}", end="")
             print()
 
     def on_data_error(self, logconf, msg):
@@ -131,5 +131,5 @@ class Telemetry:
         print(f"Connection to '{link_uri}' lost: '{msg}'")
 
     def on_disconnected(self, link_uri):
-        print(f"Disconnected from {link_uri}")
+        print(f"Disconnected from '{link_uri}'")
         self.state.set(Telemetry.State.DISCONNECTED)

@@ -7,4 +7,4 @@ class Setpoint:
         self.yaw = yaw
 
     def __str__(self):
-        return str(self.position) + ' ' + str(self.yaw)
+        return str(self.position) + " " + str(self.yaw)

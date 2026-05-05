@@ -10,7 +10,7 @@ class Gauge(Widget):
 
     BORDER_COLOR = (6, 206, 0, 255)
     FILL_COLOR = (6, 206, 0, 255)
-    BG_COLOR = COLORS['gray30']
+    BG_COLOR = COLORS["gray30"]
 
     class Direction(Enum):
         NORTH = 0

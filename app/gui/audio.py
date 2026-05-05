@@ -26,10 +26,10 @@ class Audio:
 
         # Load sound effects
         self.sfxs = [
-            Sound(os.path.join('sfx', 'button.wav')),
-            Sound(os.path.join('sfx', 'shutter.wav')),
-            Sound(os.path.join('sfx', 'altitude.wav')),
-            Sound(os.path.join('sfx', 'fuel_low.wav'))
+            Sound(os.path.join("sfx", "button.wav")),
+            Sound(os.path.join("sfx", "shutter.wav")),
+            Sound(os.path.join("sfx", "altitude.wav")),
+            Sound(os.path.join("sfx", "fuel_low.wav"))
         ]
 
         # Create channels

@@ -10,7 +10,7 @@ class Measurement:
         self.battery: float = battery
 
     def __str__(self):
-        return str(self.timestamp) + ' ' + str(self.position) + ' ' + str(self.rotation) + ' ' + str(self.battery)
+        return str(self.timestamp) + " " + str(self.position) + " " + str(self.rotation) + " " + str(self.battery)
 
     def to_array(self) -> np.ndarray:
         return np.array([

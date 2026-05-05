@@ -1,7 +1,7 @@
 from threading import Lock
 from typing import TypeVar, Generic
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 class Atomic(Generic[T]):
 

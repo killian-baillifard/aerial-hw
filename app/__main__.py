@@ -7,7 +7,6 @@ from app import wrap
 from app.gui import Gui
 from app.gui.audio import Audio
 from app.telemetry import Telemetry
-from app.telemetry.setpoint import Setpoint
 from app.camera import Camera
 from app.inputs import Input
 from app.inputs.controller import Controller
@@ -51,13 +50,13 @@ def main():
             telemetry_state = new_telemetry_state
             match telemetry_state:
                 case Telemetry.State.DISCONNECTED:
-                    gui.telemetry_button.set_text(f'TELEMETRY [OFF]')
+                    gui.telemetry_button.set_text(f"TELEMETRY [OFF]")
                     gui.telemetry_button.enable()
                 case Telemetry.State.CONNECTING:
-                    gui.telemetry_button.set_text(f'TELEMETRY [...]')
+                    gui.telemetry_button.set_text(f"TELEMETRY [...]")
                     gui.telemetry_button.disable()
                 case Telemetry.State.CONNECTED:
-                    gui.telemetry_button.set_text(f'TELEMETRY [ON]')
+                    gui.telemetry_button.set_text(f"TELEMETRY [ON]")
                     gui.telemetry_button.enable()
 
         # Update displayed camera state
@@ -66,13 +65,13 @@ def main():
             camera_state = new_camera_state
             match camera_state:
                 case Camera.State.DISCONNECTED:
-                    gui.camera_button.set_text(f'CAMERA [OFF]')
+                    gui.camera_button.set_text(f"CAMERA [OFF]")
                     gui.camera_button.enable()
                 case Camera.State.CONNECTING:
-                    gui.camera_button.set_text(f'CAMERA [...]')
+                    gui.camera_button.set_text(f"CAMERA [...]")
                     gui.camera_button.disable()
                 case Camera.State.CONNECTED:
-                    gui.camera_button.set_text(f'CAMERA [ON]')
+                    gui.camera_button.set_text(f"CAMERA [ON]")
                     gui.camera_button.enable()
 
         # Disable simulation button if either telemetry or camera is not disconnected
@@ -117,7 +116,7 @@ def main():
 
                 case Gui.Event.SIMULATION_BUTTON:
                     simulation = not simulation
-                    gui.simulation_button.set_text(f'SIMULATION [{'ON' if simulation else 'OFF'}]')
+                    gui.simulation_button.set_text(f"SIMULATION [{'ON' if simulation else 'OFF'}]")
                     match simulation:
                         case True:
                             gui.telemetry_button.disable()
@@ -128,7 +127,7 @@ def main():
 
                 case Gui.Event.PLANNER_BUTTON:
                     planner = not planner
-                    gui.planner_button.set_text(f'PLANNER [{'ON' if planner else 'OFF'}]')
+                    gui.planner_button.set_text(f"PLANNER [{'ON' if planner else 'OFF'}]")
                     match planner:
                         case True:
                             pass
@@ -144,13 +143,13 @@ def main():
             control_mode = new_control_mode
             match control_mode:
                 case ControlMode.KEYBOARD:
-                    gui.controls_button.set_text('KEYBOARD [ON]')
+                    gui.controls_button.set_text("KEYBOARD [ON]")
                 case ControlMode.CONTROLLER:
                     controller_connected = new_controller_status
-                    gui.controls_button.set_text(f'CONTROLLER [{'ON' if controller_connected else 'OFF'}]')
+                    gui.controls_button.set_text(f"CONTROLLER [{'ON' if controller_connected else 'OFF'}]")
         elif control_mode == ControlMode.CONTROLLER and new_controller_status != controller_connected:
             controller_connected = new_controller_status
-            gui.controls_button.set_text(f'CONTROLLER [{'ON' if controller_connected else 'OFF'}]')
+            gui.controls_button.set_text(f"CONTROLLER [{'ON' if controller_connected else 'OFF'}]")
 
         # Get last telemetry and camera data
         measurement = telemetry.get_last_measurement()
@@ -169,7 +168,7 @@ def main():
             case ControlMode.PLANNER:
                 # setpoint = planner.update(measurement, frame)
                 manual_input = None
-                raise NotImplementedError('Planner not implemented yet')
+                raise NotImplementedError("Planner not implemented yet")
 
         # Simulate camera and measurements
         if simulation:
@@ -188,10 +187,10 @@ def main():
         gui.yaw_joystick.set_delta(glm.ivec2(-relative_yaw * INDICATOR_LEN, 0))
 
         # Update sensors measurement indicators
-        gui.x_indicator.set_text(f'[X = {measurement.position.x:.3f} m]')
-        gui.y_indicator.set_text(f'[Y = {measurement.position.y:.3f} m]')
-        gui.z_indicator.set_text(f'[Z = {measurement.position.z:.3f} m]')
-        gui.yaw_indicator.set_text(f'[YAW = {(measurement.rotation.z * 180.0 / np.pi):.3f} °]')
+        gui.x_indicator.set_text(f"[X = {measurement.position.x:.3f} m]")
+        gui.y_indicator.set_text(f"[Y = {measurement.position.y:.3f} m]")
+        gui.z_indicator.set_text(f"[Z = {measurement.position.z:.3f} m]")
+        gui.yaw_indicator.set_text(f"[YAW = {(measurement.rotation.z * 180.0 / np.pi):.3f} °]")
         gui.roll_indicator.set_roll(measurement.rotation.x)
         gui.pitch_indicator.set_pitch(measurement.rotation.y)
         gui.batt_gauge.set_progress(measurement.battery)
@@ -206,10 +205,10 @@ def main():
         # Update image
         h, w = frame.shape[:2]
         if len(frame.shape) == 3 and frame.shape[2] > 1:
-            surface = pygame.image.frombuffer(frame.tobytes(), (w, h), 'RGB')
+            surface = pygame.image.frombuffer(frame.tobytes(), (w, h), "RGB")
             gui.camera_image.set_color_image(surface)
         else:
-            surface = pygame.image.frombuffer(frame.tobytes(), (w, h), 'P')
+            surface = pygame.image.frombuffer(frame.tobytes(), (w, h), "P")
             gui.camera_image.set_grayscale_image(surface)
 
         # On capture press

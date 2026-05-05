@@ -11,7 +11,7 @@ from app.telemetry.measurement import Measurement
 
 class Camera(Thread):
 
-    IP      = '192.168.4.1'
+    IP      = "192.168.4.1"
     PORT    = 5000
     TIMEOUT = 10.0
 
@@ -21,7 +21,7 @@ class Camera(Thread):
         CONNECTED       = 2
 
     def __init__(self) -> None:
-        super().__init__(name='Camera', daemon=True)
+        super().__init__(name="Camera", daemon=True)
         self.alive: Atomic[bool] = Atomic(True)
         self.state: Atomic[Camera.State] = Atomic(Camera.State.DISCONNECTED)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -59,38 +59,38 @@ class Camera(Thread):
                     try:
                         # Read packet info
                         raw_packet_info = self.receive(4)
-                        [length, routing, function] = struct.unpack('<HBB', raw_packet_info)
-                        #print('info')
+                        [length, routing, function] = struct.unpack("<HBB", raw_packet_info)
+                        #print("info")
                         
                         # Read image header
                         image_header = self.receive(length - 2)
-                        [magic, width, height, depth, format, size] = struct.unpack('<BHHBBI', image_header)
+                        [magic, width, height, depth, format, size] = struct.unpack("<BHHBBI", image_header)
                         if magic != 0xBC:
-                            raise ConnectionError(f'Unexpected magic number: got {magic:#x}')
-                        #print('header')
+                            raise ConnectionError(f"Unexpected magic number: got {magic:#x}")
+                        #print("header")
 
                         # Read image chunk by chunk
                         image_stream = bytearray()
                         while len(image_stream) < size:
                             raw_packet_info = self.receive(4)
-                            [length, dst, src] = struct.unpack('<HBB', raw_packet_info)
+                            [length, dst, src] = struct.unpack("<HBB", raw_packet_info)
                             chunk = self.receive(length - 2)
                             image_stream.extend(chunk)
-                            #print('chunk')
+                            #print("chunk")
 
                         # Decode format
                         if format == 0:
                             bayer = np.frombuffer(image_stream, dtype=np.uint8)
                             bayer = bayer.reshape((244, 324)) # (height, width) ?
                             image = cv2.cvtColor(bayer, cv2.COLOR_BayerBG2RGB) # cv2.COLOR_BayerBG2BGRA ?
-                            #print('color')
+                            #print("color")
                         else:
                             array = np.frombuffer(image_stream, np.uint8)
                             image = cv2.imdecode(array, cv2.IMREAD_UNCHANGED)
-                            #print('grayscale')
+                            #print("grayscale")
 
                         # Set new frame
-                        #print('image')
+                        #print("image")
                         self.image.set(image)
                     
                     except OSError as e:

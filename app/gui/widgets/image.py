@@ -53,4 +53,4 @@ class Image(Widget):
             y = self.rect.y + (self.rect.height - self.image.get_height()) // 2
             surface.blit(self.image, (x, y))
         else:
-            draw.rect(surface, COLORS['black'], self.rect)
+            draw.rect(surface, COLORS["black"], self.rect)

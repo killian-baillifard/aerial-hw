@@ -6,14 +6,14 @@ from app.gui.widgets import Widget
 
 class Label(Widget):
 
-    def __init__(self, pos: glm.uvec2, text: str = 'Label', size: int = 20, color = 'black', z_index: int = 0) -> None:
+    def __init__(self, pos: glm.uvec2, text: str = "Label", size: int = 20, color = "black", z_index: int = 0) -> None:
         super().__init__(z_index)
         self.rect: Rect = Rect(pos.x, pos.y, 0, 0)
         self.text: str = text
         self.font: Font = None
         self.color = color
         self.image: Surface = None
-        self.set_font('Consolas', size)
+        self.set_font("Consolas", size)
 
     def __del__(self) -> None:
         super().__del__()

@@ -15,9 +15,9 @@ class Button(Widget):
     TEXT_COLOR = (6, 206, 0, 255)
 
     BG_DISABLED_COLOR = (0, 0, 0, 0)
-    BG_IDLE_COLOR = COLORS['gray20']
-    BG_HOVERED_COLOR = COLORS['gray30']
-    BG_PRESSED_COLOR = COLORS['gray40']
+    BG_IDLE_COLOR = COLORS["gray20"]
+    BG_HOVERED_COLOR = COLORS["gray30"]
+    BG_PRESSED_COLOR = COLORS["gray40"]
 
     BORDER_DISABLED_COLOR = (3, 170, 0, 255)
     BORDER_IDLE_COLOR = (6, 206, 0, 255)
@@ -30,7 +30,7 @@ class Button(Widget):
         HOVERED = 2
         PRESSED = 3
 
-    def __init__(self, pos: glm.uvec2, text: str = 'Button', width: int = 100, height: int = 30, disabled: bool = False, z_index: int = 0) -> None:
+    def __init__(self, pos: glm.uvec2, text: str = "Button", width: int = 100, height: int = 30, disabled: bool = False, z_index: int = 0) -> None:
         super().__init__(z_index)
         
         # Set properties

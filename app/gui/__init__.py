@@ -40,42 +40,42 @@ class Gui:
         # Initialize window
         pygame.init()
         pygame.joystick.init()
-        icon = pygame.image.load(os.path.join('assets/icon.png'))
+        icon = pygame.image.load(os.path.join("assets/icon.png"))
         pygame.display.set_icon(icon)
         self.screen = pygame.display.set_mode(Gui.WINDOW_SIZE)
-        pygame.display.set_caption('Crazyfly telemetry tool')
+        pygame.display.set_caption("Crazyfly telemetry tool")
 
         # Declare GUI controls
 
         image_center = glm.uvec2(WIDTH / 2, TOP_BAR + HEIGHT / 2 + 2 * MARGIN)
 
-        self.telemetry_button = Button(glm.uvec2(MARGIN, MARGIN), 'TELEMETRY [OFF]', BTN_WIDTH)
-        self.camera_button = Button(glm.uvec2(2 * MARGIN + BTN_WIDTH, MARGIN), 'CAMERA [OFF]', BTN_WIDTH)
-        self.controls_button = Button(glm.uvec2(3 * MARGIN + 2 * BTN_WIDTH, MARGIN), 'CONTROLLER [OFF]', BTN_WIDTH)
-        self.simulation_button = Button(glm.uvec2(4 * MARGIN + 3 * BTN_WIDTH, MARGIN), 'SIMULATION [OFF]', BTN_WIDTH)
-        self.planner_button = Button(glm.uvec2(5 * MARGIN + 4 * BTN_WIDTH, MARGIN), 'PLANNER [OFF]', BTN_WIDTH)
+        self.telemetry_button = Button(glm.uvec2(MARGIN, MARGIN), "TELEMETRY [OFF]", BTN_WIDTH)
+        self.camera_button = Button(glm.uvec2(2 * MARGIN + BTN_WIDTH, MARGIN), "CAMERA [OFF]", BTN_WIDTH)
+        self.controls_button = Button(glm.uvec2(3 * MARGIN + 2 * BTN_WIDTH, MARGIN), "CONTROLLER [OFF]", BTN_WIDTH)
+        self.simulation_button = Button(glm.uvec2(4 * MARGIN + 3 * BTN_WIDTH, MARGIN), "SIMULATION [OFF]", BTN_WIDTH)
+        self.planner_button = Button(glm.uvec2(5 * MARGIN + 4 * BTN_WIDTH, MARGIN), "PLANNER [OFF]", BTN_WIDTH)
 
         self.camera_image = Image(glm.uvec2(0, TOP_BAR + 2 * MARGIN), WIDTH, HEIGHT)
 
         self.xy_joystick = Joystick(image_center, glm.ivec2(0, 0))
-        _ = Label(glm.uvec2(image_center.x + MARGIN, image_center.y + MARGIN), 'XY', color=Gui.PRIMARY_COLOR, z_index=2)
+        _ = Label(glm.uvec2(image_center.x + MARGIN, image_center.y + MARGIN), "XY", color=Gui.PRIMARY_COLOR, z_index=2)
         
         self.z_joystick = Joystick(glm.uvec2(WIDTH - 2 * MARGIN, image_center.y), glm.ivec2(0, 0))
-        _ = Label(glm.uvec2(WIDTH - 4 * MARGIN - 2, image_center.y - MARGIN + 2), 'Z', color=Gui.PRIMARY_COLOR, z_index=2)
+        _ = Label(glm.uvec2(WIDTH - 4 * MARGIN - 2, image_center.y - MARGIN + 2), "Z", color=Gui.PRIMARY_COLOR, z_index=2)
 
         self.yaw_joystick = Joystick(glm.uvec2(image_center.x, TOP_BAR + HEIGHT), glm.ivec2(0, 0))
-        _ = Label(glm.uvec2(image_center.x - MARGIN - 7, TOP_BAR + HEIGHT - 3 * MARGIN), 'YAW', color=Gui.PRIMARY_COLOR, z_index=2)
+        _ = Label(glm.uvec2(image_center.x - MARGIN - 7, TOP_BAR + HEIGHT - 3 * MARGIN), "YAW", color=Gui.PRIMARY_COLOR, z_index=2)
 
         self.roll_indicator = Roll(image_center, 0.0, 1)
         self.pitch_indicator = Pitch(image_center, 0.0, 1)
         self.shutter_indicator = Shutter(image_center, glm.uvec2(image_center.x - MARGIN, HEIGHT / 2 - MARGIN))
 
-        self.x_indicator = Label(glm.uvec2(MARGIN, TOP_BAR + HEIGHT + 3 * MARGIN), '[X = 0.000 m]', color=Gui.PRIMARY_COLOR, z_index=2)
-        self.y_indicator = Label(glm.uvec2(2 * MARGIN + BTN_WIDTH, TOP_BAR + HEIGHT + 3 * MARGIN), '[Y = 0.000 m]', color=Gui.PRIMARY_COLOR, z_index=2)
-        self.z_indicator = Label(glm.uvec2(3 * MARGIN + 2 * BTN_WIDTH, TOP_BAR + HEIGHT + 3 * MARGIN), '[Z = 0.000 m]', color=Gui.PRIMARY_COLOR, z_index=2)
-        self.yaw_indicator = Label(glm.uvec2(4 * MARGIN + 3 * BTN_WIDTH, TOP_BAR + HEIGHT + 3 * MARGIN), '[YAW = 0.000 °]', color=Gui.PRIMARY_COLOR, z_index=2)
+        self.x_indicator = Label(glm.uvec2(MARGIN, TOP_BAR + HEIGHT + 3 * MARGIN), "[X = 0.000 m]", color=Gui.PRIMARY_COLOR, z_index=2)
+        self.y_indicator = Label(glm.uvec2(2 * MARGIN + BTN_WIDTH, TOP_BAR + HEIGHT + 3 * MARGIN), "[Y = 0.000 m]", color=Gui.PRIMARY_COLOR, z_index=2)
+        self.z_indicator = Label(glm.uvec2(3 * MARGIN + 2 * BTN_WIDTH, TOP_BAR + HEIGHT + 3 * MARGIN), "[Z = 0.000 m]", color=Gui.PRIMARY_COLOR, z_index=2)
+        self.yaw_indicator = Label(glm.uvec2(4 * MARGIN + 3 * BTN_WIDTH, TOP_BAR + HEIGHT + 3 * MARGIN), "[YAW = 0.000 °]", color=Gui.PRIMARY_COLOR, z_index=2)
         
-        _ = Label(glm.uvec2(5 * BTN_WIDTH - 2 * MARGIN, TOP_BAR + HEIGHT + 3 * MARGIN), '[BATT]', color=Gui.PRIMARY_COLOR, z_index=2)
+        _ = Label(glm.uvec2(5 * BTN_WIDTH - 2 * MARGIN, TOP_BAR + HEIGHT + 3 * MARGIN), "[BATT]", color=Gui.PRIMARY_COLOR, z_index=2)
         self.batt_gauge = Gauge(glm.uvec2(6 * MARGIN + 5 * BTN_WIDTH, TOP_BAR + HEIGHT + 3 * MARGIN), Gauge.Direction.WEST, length=BTN_WIDTH)
 
         # Set event handlers

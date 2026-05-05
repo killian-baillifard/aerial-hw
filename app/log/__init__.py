@@ -8,8 +8,8 @@ from app.telemetry.measurement import Measurement
 
 class Logger:
 
-    CAPTURES_PATH = os.path.join('captures')
-    MEASUREMENTS_FILE = 'measures.npy'
+    CAPTURES_PATH = os.path.join("captures")
+    MEASUREMENTS_FILE = "measures.npy"
 
     def __init__(self) -> None:
 
@@ -22,7 +22,7 @@ class Logger:
             os.mkdir(Logger.CAPTURES_PATH)
 
         # Create session subfolder
-        session_code = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+        session_code = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         self.session_path = os.path.join(Logger.CAPTURES_PATH, session_code)
         os.mkdir(self.session_path)
 
@@ -39,6 +39,6 @@ class Logger:
 
     def log(self, measurement: Measurement, frame: MatLike):
         self.measurements.append(measurement.to_array())
-        path = os.path.join(self.session_path, f'{self.i}.png')
+        path = os.path.join(self.session_path, f"{self.i}.png")
         cv2.imwrite(path, frame)
         self.i += 1
