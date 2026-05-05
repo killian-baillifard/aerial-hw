@@ -81,8 +81,8 @@ class Camera(Thread):
                         # Decode format
                         if format == 0:
                             bayer = np.frombuffer(image_stream, dtype=np.uint8)
-                            bayer = bayer.reshape((244, 324)) # (height, width) ?
-                            image = cv2.cvtColor(bayer, cv2.COLOR_BayerBG2RGB) # cv2.COLOR_BayerBG2BGRA ?
+                            bayer = bayer.reshape((244, 324))
+                            image = cv2.cvtColor(bayer, cv2.COLOR_BayerBG2BGRA)
                             #print("color")
                         else:
                             array = np.frombuffer(image_stream, np.uint8)
