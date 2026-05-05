@@ -33,6 +33,7 @@ class Gui:
         CAMERA_BUTTON       = 2
         CONTROLS_BUTTON     = 3
         SIMULATION_BUTTON   = 4
+        PLANNER_BUTTON      = 5
 
     def __init__(self) -> None:
 
@@ -48,10 +49,11 @@ class Gui:
 
         image_center = glm.uvec2(WIDTH / 2, TOP_BAR + HEIGHT / 2 + 2 * MARGIN)
 
-        self.telemetry_button = Button(glm.uvec2(MARGIN, MARGIN), 'Telemetry [OFF]', BTN_WIDTH)
-        self.camera_button = Button(glm.uvec2(2 * MARGIN + BTN_WIDTH, MARGIN), 'Camera [OFF]', BTN_WIDTH)
-        self.controls_button = Button(glm.uvec2(3 * MARGIN + 2 * BTN_WIDTH, MARGIN), 'Controller [OFF]', BTN_WIDTH)
-        self.simulation_button = Button(glm.uvec2(4 * MARGIN + 3 * BTN_WIDTH, MARGIN), 'Simulation [OFF]', BTN_WIDTH)
+        self.telemetry_button = Button(glm.uvec2(MARGIN, MARGIN), 'TELEMETRY [OFF]', BTN_WIDTH)
+        self.camera_button = Button(glm.uvec2(2 * MARGIN + BTN_WIDTH, MARGIN), 'CAMERA [OFF]', BTN_WIDTH)
+        self.controls_button = Button(glm.uvec2(3 * MARGIN + 2 * BTN_WIDTH, MARGIN), 'CONTROLLER [OFF]', BTN_WIDTH)
+        self.simulation_button = Button(glm.uvec2(4 * MARGIN + 3 * BTN_WIDTH, MARGIN), 'SIMULATION [OFF]', BTN_WIDTH)
+        self.planner_button = Button(glm.uvec2(5 * MARGIN + 4 * BTN_WIDTH, MARGIN), 'PLANNER [OFF]', BTN_WIDTH)
 
         self.camera_image = Image(glm.uvec2(0, TOP_BAR + 2 * MARGIN), WIDTH, HEIGHT)
 
@@ -81,6 +83,7 @@ class Gui:
         self.camera_button.set_release_handler(self.on_camera_button_click)
         self.controls_button.set_release_handler(self.on_controls_button_click)
         self.simulation_button.set_release_handler(self.on_simulation_button_click)
+        self.planner_button.set_release_handler(self.on_planner_button_click)
 
         # Initialize gui state
         self.last_time = time.perf_counter()
@@ -97,6 +100,9 @@ class Gui:
 
     def on_simulation_button_click(self) -> None:
         self.events.append(Gui.Event.SIMULATION_BUTTON)
+
+    def on_planner_button_click(self) -> None:
+        self.events.append(Gui.Event.PLANNER_BUTTON)
 
     def update(self) -> list[Event]:
 

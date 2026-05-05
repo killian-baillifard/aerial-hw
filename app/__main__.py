@@ -39,6 +39,7 @@ def main():
     telemetry_state: Telemetry.State = Telemetry.State.DISCONNECTED
     camera_state: Camera.State = Camera.State.DISCONNECTED
     simulation: bool = False
+    planner: bool = False
     quit: bool = False
 
     # Application loop
@@ -50,13 +51,13 @@ def main():
             telemetry_state = new_telemetry_state
             match telemetry_state:
                 case Telemetry.State.DISCONNECTED:
-                    gui.telemetry_button.set_text(f'Telemetry [OFF]')
+                    gui.telemetry_button.set_text(f'TELEMETRY [OFF]')
                     gui.telemetry_button.enable()
                 case Telemetry.State.CONNECTING:
-                    gui.telemetry_button.set_text(f'Telemetry [...]')
+                    gui.telemetry_button.set_text(f'TELEMETRY [...]')
                     gui.telemetry_button.disable()
                 case Telemetry.State.CONNECTED:
-                    gui.telemetry_button.set_text(f'Telemetry [ON]')
+                    gui.telemetry_button.set_text(f'TELEMETRY [ON]')
                     gui.telemetry_button.enable()
 
         # Update displayed camera state
@@ -65,13 +66,13 @@ def main():
             camera_state = new_camera_state
             match camera_state:
                 case Camera.State.DISCONNECTED:
-                    gui.camera_button.set_text(f'Camera [OFF]')
+                    gui.camera_button.set_text(f'CAMERA [OFF]')
                     gui.camera_button.enable()
                 case Camera.State.CONNECTING:
-                    gui.camera_button.set_text(f'Camera [...]')
+                    gui.camera_button.set_text(f'CAMERA [...]')
                     gui.camera_button.disable()
                 case Camera.State.CONNECTED:
-                    gui.camera_button.set_text(f'Camera [ON]')
+                    gui.camera_button.set_text(f'CAMERA [ON]')
                     gui.camera_button.enable()
 
         # Disable simulation button if either telemetry or camera is not disconnected
@@ -116,7 +117,7 @@ def main():
 
                 case Gui.Event.SIMULATION_BUTTON:
                     simulation = not simulation
-                    gui.simulation_button.set_text(f'Simulation [{'ON' if simulation else 'OFF'}]')
+                    gui.simulation_button.set_text(f'SIMULATION [{'ON' if simulation else 'OFF'}]')
                     match simulation:
                         case True:
                             gui.telemetry_button.disable()
@@ -124,6 +125,15 @@ def main():
                         case False:
                             gui.telemetry_button.enable()
                             gui.camera_button.enable()
+
+                case Gui.Event.PLANNER_BUTTON:
+                    planner = not planner
+                    gui.planner_button.set_text(f'PLANNER [{'ON' if planner else 'OFF'}]')
+                    match planner:
+                        case True:
+                            pass
+                        case False:
+                            pass
 
                 case Gui.Event.QUIT_BUTTON:
                     quit = True
@@ -134,13 +144,13 @@ def main():
             control_mode = new_control_mode
             match control_mode:
                 case ControlMode.KEYBOARD:
-                    gui.controls_button.set_text('Keyboard [ON]')
+                    gui.controls_button.set_text('KEYBOARD [ON]')
                 case ControlMode.CONTROLLER:
                     controller_connected = new_controller_status
-                    gui.controls_button.set_text(f'Controller [{'ON' if controller_connected else 'OFF'}]')
+                    gui.controls_button.set_text(f'CONTROLLER [{'ON' if controller_connected else 'OFF'}]')
         elif control_mode == ControlMode.CONTROLLER and new_controller_status != controller_connected:
             controller_connected = new_controller_status
-            gui.controls_button.set_text(f'Controller [{'ON' if controller_connected else 'OFF'}]')
+            gui.controls_button.set_text(f'CONTROLLER [{'ON' if controller_connected else 'OFF'}]')
 
         # Get last telemetry and camera data
         measurement = telemetry.get_last_measurement()
