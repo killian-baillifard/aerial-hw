@@ -1,5 +1,4 @@
-crazyflie-lib-python
-cache
 .env
-captures
+cache
 **/__pycache__
+captures
