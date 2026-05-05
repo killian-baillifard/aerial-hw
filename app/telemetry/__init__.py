@@ -15,7 +15,7 @@ from app.sync import Atomic
 
 class Telemetry:
 
-    URI = uri_helper.uri_from_env(default='radio://0/100/2M/E7E7E7E702')
+    URI = uri_helper.uri_from_env(default='radio://0/20/2M/E7E7E7E702')
     PERIOD_MS = 20
 
     class State(Enum):

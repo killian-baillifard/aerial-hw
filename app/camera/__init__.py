@@ -13,7 +13,7 @@ class Camera(Thread):
 
     IP      = '192.168.4.1'
     PORT    = 5000
-    TIMEOUT = 5.0
+    TIMEOUT = 10.0
 
     class State(Enum):
         DISCONNECTED    = 0
@@ -51,7 +51,7 @@ class Camera(Thread):
                         self.state.set(Camera.State.CONNECTED)
                     except OSError as e:
                         print(e)
-                        print("Make sure you are connected to SSID 'Crazyflie_02' with password 'epfl_lis_02'")
+                        print("Make sure you are connected to SSID 'crazyflie_02' with password 'epfl_lis_02'")
                         self.reset_socket()
 
                 case Camera.State.CONNECTED:
@@ -60,12 +60,14 @@ class Camera(Thread):
                         # Read packet info
                         raw_packet_info = self.receive(4)
                         [length, routing, function] = struct.unpack('<HBB', raw_packet_info)
+                        #print('info')
                         
                         # Read image header
                         image_header = self.receive(length - 2)
                         [magic, width, height, depth, format, size] = struct.unpack('<BHHBBI', image_header)
                         if magic != 0xBC:
                             raise ConnectionError(f'Unexpected magic number: got {magic:#x}')
+                        #print('header')
 
                         # Read image chunk by chunk
                         image_stream = bytearray()
@@ -74,17 +76,21 @@ class Camera(Thread):
                             [length, dst, src] = struct.unpack('<HBB', raw_packet_info)
                             chunk = self.receive(length - 2)
                             image_stream.extend(chunk)
+                            #print('chunk')
 
                         # Decode format
                         if format == 0:
                             bayer = np.frombuffer(image_stream, dtype=np.uint8)
                             bayer = bayer.reshape((244, 324)) # (height, width) ?
                             image = cv2.cvtColor(bayer, cv2.COLOR_BayerBG2RGB) # cv2.COLOR_BayerBG2BGRA ?
+                            #print('color')
                         else:
                             array = np.frombuffer(image_stream, np.uint8)
                             image = cv2.imdecode(array, cv2.IMREAD_UNCHANGED)
+                            #print('grayscale')
 
                         # Set new frame
+                        #print('image')
                         self.image.set(image)
                     
                     except OSError as e:

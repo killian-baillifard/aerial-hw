@@ -223,7 +223,7 @@ def main():
             logger.log(measurement, frame)
 
         # Update telemetry input command
-        telemetry.set_setpoint(setpoint)
+        #telemetry.set_setpoint(setpoint)
     
     camera.stop()
     gui.quit()
