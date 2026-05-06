@@ -30,7 +30,7 @@ class Gui:
     class Event(Enum):
         QUIT_BUTTON         = 0
         TELEMETRY_BUTTON    = 1
-        CAMERA_BUTTON       = 2
+        LINK_TYPE_BUTTON    = 2
         CONTROLS_BUTTON     = 3
         SIMULATION_BUTTON   = 4
         PLANNER_BUTTON      = 5
@@ -50,7 +50,7 @@ class Gui:
         image_center = glm.uvec2(WIDTH / 2, TOP_BAR + HEIGHT / 2 + 2 * MARGIN)
 
         self.telemetry_button = Button(glm.uvec2(MARGIN, MARGIN), "TELEMETRY [OFF]", BTN_WIDTH)
-        self.camera_button = Button(glm.uvec2(2 * MARGIN + BTN_WIDTH, MARGIN), "CAMERA [OFF]", BTN_WIDTH)
+        self.link_type_button = Button(glm.uvec2(2 * MARGIN + BTN_WIDTH, MARGIN), "LINK [RADIO]", BTN_WIDTH)
         self.controls_button = Button(glm.uvec2(3 * MARGIN + 2 * BTN_WIDTH, MARGIN), "CONTROLLER [OFF]", BTN_WIDTH)
         self.simulation_button = Button(glm.uvec2(4 * MARGIN + 3 * BTN_WIDTH, MARGIN), "SIMULATION [OFF]", BTN_WIDTH)
         self.planner_button = Button(glm.uvec2(5 * MARGIN + 4 * BTN_WIDTH, MARGIN), "PLANNER [OFF]", BTN_WIDTH)
@@ -80,7 +80,7 @@ class Gui:
 
         # Set event handlers
         self.telemetry_button.set_release_handler(self.on_telemetry_button_click)
-        self.camera_button.set_release_handler(self.on_camera_button_click)
+        self.link_type_button.set_release_handler(self.on_link_type_click)
         self.controls_button.set_release_handler(self.on_controls_button_click)
         self.simulation_button.set_release_handler(self.on_simulation_button_click)
         self.planner_button.set_release_handler(self.on_planner_button_click)
@@ -92,8 +92,8 @@ class Gui:
     def on_telemetry_button_click(self) -> None:
         self.events.append(Gui.Event.TELEMETRY_BUTTON)
 
-    def on_camera_button_click(self) -> None:
-        self.events.append(Gui.Event.CAMERA_BUTTON)
+    def on_link_type_click(self) -> None:
+        self.events.append(Gui.Event.LINK_TYPE_BUTTON)
 
     def on_controls_button_click(self) -> None:
         self.events.append(Gui.Event.CONTROLS_BUTTON)

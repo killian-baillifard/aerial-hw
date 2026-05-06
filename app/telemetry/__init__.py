@@ -1,29 +1,45 @@
 import os
 import logging
+import struct
+from threading import Thread
+import time
 import numpy as np
 from enum import Enum
+from overrides import override
 from pyglm import glm
+from cv2.typing import MatLike
+from app.inputs import Input
+from cflib.cpx import CPXFunction
 import cflib.crtp
 from cflib.utils import uri_helper
 from cflib.crazyflie import Crazyflie
 from cflib.crazyflie.log import LogConfig
-from app import wrap
 from app.telemetry.measurement import Measurement
-from app.inputs import Input
-from app.telemetry.setpoint import Setpoint
+from app.inputs.setpoint import Setpoint
 from app.sync import Atomic
+import cv2
 
-class Telemetry:
+class Telemetry(Thread):
 
-    URI = uri_helper.uri_from_env(default="radio://0/20/2M/E7E7E7E702")
+    RADIO_URI = uri_helper.uri_from_env(default="radio://0/20/2M/E7E7E7E702")
+    WIFI_URI = uri_helper.uri_from_env(default="tcp://192.168.4.1:5000")
+    CAM_WIDTH = 324
+    CAM_HEIGHT = 244
     PERIOD_MS = 20
+
+    Z_RATE = (1.0 / 60.0)
 
     class State(Enum):
         DISCONNECTED    = 0
         CONNECTING      = 1
         CONNECTED       = 2
 
+    class LinkType(Enum):
+        RADIO = 0
+        WIFI  = 1
+
     def __init__(self) -> None:
+        super().__init__(name='Telemetry', daemon=True)
         logging.basicConfig(level=logging.ERROR)
         cflib.crtp.init_drivers()
 
@@ -38,7 +54,7 @@ class Telemetry:
         self.log_config.data_received_cb.add_callback(self.on_data_received)
         self.log_config.error_cb.add_callback(self.on_data_error)
         
-        self.crazyflie = Crazyflie(rw_cache=os.path.join("cache"))
+        self.crazyflie = Crazyflie(ro_cache=None, rw_cache=os.path.join("cache"))
         self.crazyflie.connected.add_callback(self.on_connected)
         self.crazyflie.disconnected.add_callback(self.on_disconnected)
         self.crazyflie.connection_failed.add_callback(self.on_connection_failed)
@@ -46,29 +62,73 @@ class Telemetry:
 
         self.state: Atomic[Telemetry.State] = Atomic(Telemetry.State.DISCONNECTED)
         self.measurement: Atomic[Measurement] = Atomic(Measurement())
+        self.frame: Atomic[MatLike] = Atomic(np.zeros(shape=(244, 324, 3), dtype=np.uint8))
+        self.link_type: Atomic[Telemetry.LinkType | None] = Atomic(None)
 
-    def connect(self) -> None:
+        self.z_acc = 1.0
+
+        self.start()
+
+    def connect(self, link_type: LinkType) -> None:
         try:
             self.state.set(Telemetry.State.CONNECTING)
-            self.crazyflie.open_link(Telemetry.URI)
+            self.link_type.set(link_type)
+            match link_type:
+                case Telemetry.LinkType.RADIO:
+                    self.crazyflie.open_link(Telemetry.RADIO_URI)
+                case Telemetry.LinkType.WIFI:
+                    self.z_acc = 1.0
+                    self.crazyflie.open_link(Telemetry.WIFI_URI)
+                    self.crazyflie.supervisor.send_arming_request(True)
+
         except:
             self.state.set(Telemetry.State.DISCONNECTED)
+            self.link_type.set(None)
 
-    def simulate(self, manual_input: Input):
-        m = self.measurement.get()
-        m.rotation.x = -manual_input.position.y * np.pi / 2.0                               # Infer from forward displacement command
-        m.rotation.y = -manual_input.position.x * 250                                       # Infer from lateral displacement command
-        m.rotation.z += (1 / 60) * manual_input.yaw                                         # Integrate yaw command
-        m.rotation.z = wrap(m.rotation.z)                                                   # Wrap yaw around -pi to pi
-        xy = manual_input.position.xy                                                       # Isolate xy components
-        m.position.xy += (1 / 60) * glm.rotateZ(glm.vec3(xy.x, xy.y, 0.0), m.rotation.z).xy # Integrate xy displacement with respect to yaw
-        m.position.z += (1 / 60) * manual_input.position.z                                  # Integrate z displacement
-        m.position.z = np.max([0.0, m.position.z])                                          # Bound z below
-        m.battery = np.clip((5.0 - glm.length(m.position.xy)) / 5.0, 0.0, 1.0)              # Make battery decrease with lateral distance (max 20 m)
-        self.measurement.set(m)
+    @override
+    def run(self) -> None:
+        while True:
+            if self.state.get() is not Telemetry.State.CONNECTED:
+                time.sleep(0.001)
+            elif self.link_type.get() is not Telemetry.LinkType.WIFI:
+                time.sleep(0.001)
+            else:
+                try:
+                    frame = self.receive_image()
+                    self.frame.set(frame)
+                except ValueError as e:
+                    pass
+
+    def receive_image(self) -> MatLike:
+        p = self.crazyflie.link.cpx.receivePacket(CPXFunction.APP)
+        [magic, width, height, depth, fmt, size] = struct.unpack('<BHHBBI', p.data[0:11])
+        if magic == 0xBC:
+            buf = bytearray()
+            while len(buf) < size:
+                buf.extend(self.crazyflie.link.cpx.receivePacket(CPXFunction.APP).data)
+            img = np.frombuffer(buf, dtype=np.uint8)
+            bayer = img.reshape((Telemetry.CAM_HEIGHT, Telemetry.CAM_WIDTH))
+            color = cv2.cvtColor(bayer, cv2.COLOR_BayerBG2RGB)
+            return color
+        else:
+            raise ValueError("Invalid frame")
 
     def get_last_measurement(self) -> Measurement:
         return self.measurement.get()
+        
+    def get_last_frame(self) -> MatLike:
+        return self.frame.get()
+    
+    def set_input(self, input: Input) -> None:
+        if self.state.get() == Telemetry.State.CONNECTED:
+            self.z_acc += input.position.z * Telemetry.Z_RATE
+            self.z_acc = np.clip(self.z_acc, 0.0, 3.0)
+            self.crazyflie.commander.send_hover_setpoint(
+                input.position.x,
+                input.position.y,
+                np.rad2deg(input.yaw),
+                self.z_acc
+            )
         
     def set_setpoint(self, setpoint: Setpoint) -> None:
         if self.state.get() == Telemetry.State.CONNECTED:
@@ -80,8 +140,8 @@ class Telemetry:
             )
 
     def disconnect(self) -> None:
+        self.crazyflie.commander.send_stop_setpoint()
         self.crazyflie.close_link()
-        self.state.set(Telemetry.State.DISCONNECTED)
 
     def on_connected(self, link_uri):
         print(f"Connected to {link_uri}")
@@ -126,6 +186,7 @@ class Telemetry:
     def on_connection_failed(self, link_uri, msg):
         print(f"Connection to '{link_uri}' failed: '{msg}'")
         self.state.set(Telemetry.State.DISCONNECTED)
+        self.link_type.set(None)
 
     def on_connection_lost(self, link_uri, msg):
         print(f"Connection to '{link_uri}' lost: '{msg}'")
@@ -133,3 +194,4 @@ class Telemetry:
     def on_disconnected(self, link_uri):
         print(f"Disconnected from '{link_uri}'")
         self.state.set(Telemetry.State.DISCONNECTED)
+        self.link_type.set(None)
