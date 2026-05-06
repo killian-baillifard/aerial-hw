@@ -79,7 +79,7 @@ class Telemetry(Thread):
                 case Telemetry.LinkType.WIFI:
                     self.z_acc = 1.0
                     self.crazyflie.open_link(Telemetry.WIFI_URI)
-                    #self.crazyflie.supervisor.send_arming_request(True)
+                    self.crazyflie.supervisor.send_arming_request(True)
 
         except:
             self.state.set(Telemetry.State.DISCONNECTED)
@@ -127,7 +127,7 @@ class Telemetry(Thread):
                 input.position.x,
                 input.position.y,
                 np.rad2deg(input.yaw),
-                input.position.z + 1.0
+                self.z_acc
             )
         
     def set_setpoint(self, setpoint: Setpoint) -> None:
