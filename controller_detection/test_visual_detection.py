@@ -16,7 +16,7 @@ def main():
     test_images = []
     current_dir_path = os.path.dirname(os.path.realpath(__file__))
     saved_captures_dir = os.path.join(os.path.dirname(current_dir_path), 'saved_captures')
-    image_data_dir = os.path.join(saved_captures_dir, '2026-05-05-18-57-43')
+    image_data_dir = os.path.join(saved_captures_dir, '2026-05-05-17-55-33')
     list_of_files = sorted(os.listdir(image_data_dir))
     for filename in list_of_files:
         if filename.endswith('.png'):
