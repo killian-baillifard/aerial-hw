@@ -29,6 +29,26 @@ Export as YOLOv8-Pose format, e.g. ```Ultralytics YOLO Pose 1.0```.
 - **Keypoints**: 4 corners of the gate (bottom-left, top-left, top-right, bottom-right)
 - **Bounding Box**: Enclose the entire gate
 
+#### Edge Cases
+
+- **Partial Gates**: If a gate is partially visible, annotate the visible portion and indicate the occluded parts.
+- **Multiple Gates**: If multiple gates are present, annotate each gate separately with unique IDs.
+
+### Automatic Annotation
+
+```
+cd cvat
+
+# stop CVAT
+docker-compose down
+
+# restart it with the serverless profile enabled
+docker-compose -f docker-compose.yml -f components/serverless/docker-compose.serverless.yml up -d
+```
+
+
+
+
 ## Dataset Structure
 
 Split the dataset into training and validation sets. Use ```split_dataset.py``` .

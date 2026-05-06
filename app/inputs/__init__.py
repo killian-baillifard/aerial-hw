@@ -1,7 +1,7 @@
 import numpy as np
 from app import wrap
 from app.telemetry.measurement import Measurement
-from app.telemetry.setpoint import Setpoint
+from app.inputs.setpoint import Setpoint
 from pyglm import glm
 from abc import ABC, abstractmethod
 

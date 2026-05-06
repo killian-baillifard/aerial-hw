@@ -39,6 +39,12 @@ class Logger:
 
     def log(self, measurement: Measurement, frame: MatLike):
         self.measurements.append(measurement.to_array())
+
+        # TODO remove this quick dirty fix
+        array = np.array(self.measurements)
+        path = os.path.join(self.session_path, Logger.MEASUREMENTS_FILE)
+        np.save(path, array)
+
         path = os.path.join(self.session_path, f"{self.i}.png")
         cv2.imwrite(path, frame)
         self.i += 1

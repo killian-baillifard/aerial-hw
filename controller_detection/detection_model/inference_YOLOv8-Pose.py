@@ -12,7 +12,7 @@ test_folder = 'dataset/annotated_gates_v1_split/val/'
 test_images = sorted([f for f in os.listdir(os.path.join(test_folder, 'images')) if f.lower().endswith(('.jpg', '.png', '.jpeg'))])
 
 # Choose image index
-image_idx = 9
+image_idx = 2 # 3 # 12 # 9
 test_image_path = os.path.join(test_folder, 'images', test_images[image_idx])
 label_path = os.path.join(test_folder, 'labels', os.path.splitext(test_images[image_idx])[0] + '.txt')
 
