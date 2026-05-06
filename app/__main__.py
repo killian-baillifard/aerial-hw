@@ -6,18 +6,18 @@ from app import wrap
 from app.gui import Gui
 from app.gui.audio import Audio
 from app.telemetry import Telemetry
-from app.camera import Camera
+from app.planner import Planner
 from app.inputs import Input
 from app.inputs.controller import Controller
 from app.inputs.keyboard import Keyboard
 from app.log import Logger
+from app.telemetry.simulator import Simulator
 
 INDICATOR_LEN = 200
 
 class ControlMode(Enum):
     KEYBOARD    = 0
     CONTROLLER  = 1
-    PLANNER     = 2
 
 def main():
 
@@ -26,18 +26,18 @@ def main():
     audio: Audio = Audio()
     controller: Input = Controller()
     keyboard: Input = Keyboard()
+    planner: Planner = Planner()
     telemetry: Telemetry = Telemetry()
     logger: Logger = Logger()
-    camera: Camera = Camera()
-    camera.start()
+    simulator: Simulator = Simulator()
 
     # Initialize application state
     control_mode: ControlMode = ControlMode.CONTROLLER
     controller_connected: bool = False
     telemetry_state: Telemetry.State = Telemetry.State.DISCONNECTED
-    camera_state: Camera.State = Camera.State.DISCONNECTED
-    simulation: bool = False
-    planner: bool = False
+    link_type: Telemetry.LinkType = Telemetry.LinkType.RADIO
+    simulation_enabled: bool = False
+    planner_enabled: bool = False
     quit: bool = False
 
     # Application loop
@@ -51,30 +51,18 @@ def main():
                 case Telemetry.State.DISCONNECTED:
                     gui.telemetry_button.set_text(f"TELEMETRY [OFF]")
                     gui.telemetry_button.enable()
+                    gui.link_type_button.enable()
                 case Telemetry.State.CONNECTING:
                     gui.telemetry_button.set_text(f"TELEMETRY [...]")
                     gui.telemetry_button.disable()
+                    gui.link_type_button.disable()
                 case Telemetry.State.CONNECTED:
                     gui.telemetry_button.set_text(f"TELEMETRY [ON]")
                     gui.telemetry_button.enable()
+                    gui.link_type_button.disable()
 
-        # Update displayed camera state
-        new_camera_state = camera.state.get()
-        if new_camera_state is not camera_state:
-            camera_state = new_camera_state
-            match camera_state:
-                case Camera.State.DISCONNECTED:
-                    gui.camera_button.set_text(f"CAMERA [OFF]")
-                    gui.camera_button.enable()
-                case Camera.State.CONNECTING:
-                    gui.camera_button.set_text(f"CAMERA [...]")
-                    gui.camera_button.disable()
-                case Camera.State.CONNECTED:
-                    gui.camera_button.set_text(f"CAMERA [ON]")
-                    gui.camera_button.enable()
-
-        # Disable simulation button if either telemetry or camera is not disconnected
-        if telemetry_state is not Telemetry.State.DISCONNECTED or camera_state is not Camera.State.DISCONNECTED:
+        # Disable simulation button if either telemetry is connecting or connected
+        if telemetry_state is not Telemetry.State.DISCONNECTED:
             gui.simulation_button.disable()
         else:
             gui.simulation_button.enable()
@@ -95,16 +83,18 @@ def main():
                 case Gui.Event.TELEMETRY_BUTTON:
                     match telemetry_state:
                         case Telemetry.State.DISCONNECTED:
-                            telemetry.connect()
+                            telemetry.connect(link_type)
                         case Telemetry.State.CONNECTED:
                             telemetry.disconnect()
 
-                case Gui.Event.CAMERA_BUTTON:
-                    match camera_state:
-                        case Camera.State.DISCONNECTED:
-                            camera.connect()
-                        case Camera.State.CONNECTED:
-                            camera.disconnect()
+                case Gui.Event.LINK_TYPE_BUTTON:
+                    match link_type:
+                        case Telemetry.LinkType.RADIO:
+                            link_type = Telemetry.LinkType.WIFI
+                            gui.link_type_button.set_text(f"LINK [WIFI]")
+                        case Telemetry.LinkType.WIFI:
+                            link_type = Telemetry.LinkType.RADIO
+                            gui.link_type_button.set_text(f"LINK [RADIO]")
 
                 case Gui.Event.CONTROLS_BUTTON:
                     match control_mode:
@@ -114,24 +104,25 @@ def main():
                             new_control_mode = ControlMode.KEYBOARD
 
                 case Gui.Event.SIMULATION_BUTTON:
-                    simulation = not simulation
-                    gui.simulation_button.set_text(f"SIMULATION [{'ON' if simulation else 'OFF'}]")
-                    match simulation:
+                    simulation_enabled = not simulation_enabled
+                    gui.simulation_button.set_text(f"SIMULATION [{'ON' if simulation_enabled else 'OFF'}]")
+                    match simulation_enabled:
                         case True:
                             gui.telemetry_button.disable()
-                            gui.camera_button.disable()
+                            gui.link_type_button.disable()
+                            simulator.reset()
                         case False:
                             gui.telemetry_button.enable()
-                            gui.camera_button.enable()
+                            gui.link_type_button.enable()
 
                 case Gui.Event.PLANNER_BUTTON:
-                    planner = not planner
-                    gui.planner_button.set_text(f"PLANNER [{'ON' if planner else 'OFF'}]")
-                    match planner:
+                    planner_enabled = not planner_enabled
+                    gui.planner_button.set_text(f"PLANNER [{'ON' if planner_enabled else 'OFF'}]")
+                    match planner_enabled:
                         case True:
-                            pass
+                            gui.controls_button.disable()
                         case False:
-                            pass
+                            gui.controls_button.enable()
 
                 case Gui.Event.QUIT_BUTTON:
                     quit = True
@@ -150,30 +141,36 @@ def main():
             controller_connected = new_controller_status
             gui.controls_button.set_text(f"CONTROLLER [{'ON' if controller_connected else 'OFF'}]")
 
-        # Get last telemetry and camera data
-        measurement = telemetry.get_last_measurement()
-        frame = camera.get_last_frame()
+        # Get last simulated telemetry and camera data
+        if simulation_enabled:
+            measurement = simulator.get_last_measurement()
+            frame = simulator.get_last_frame()
+        
+        # Else get last real telemetry and camera data
+        else:
+            measurement = telemetry.get_last_measurement()
+            frame = telemetry.get_last_frame()
 
         # Use selected control mode
-        match control_mode:
-            case ControlMode.KEYBOARD:
-                keyboard.update()
-                manual_input = keyboard
-            case ControlMode.CONTROLLER:
-                controller.update()
-                manual_input = controller
-            case ControlMode.PLANNER:
-                # setpoint = planner.update(measurement, frame)
-                manual_input = None
-                raise NotImplementedError("Planner not implemented yet")
+        if planner_enabled:
+            setpoint = planner.update(measurement, frame)
+            capture = False
+        else:
+            match control_mode:
+                case ControlMode.KEYBOARD:
+                    keyboard.update()
+                    setpoint = keyboard.to_setpoint(measurement) # TODO remove
+                    telemetry.set_input(keyboard)
+                    capture = keyboard.capture
+                case ControlMode.CONTROLLER:
+                    controller.update()
+                    setpoint = controller.to_setpoint(measurement) # TODO remove
+                    telemetry.set_input(controller)
+                    capture = controller.capture
 
-        # Simulate camera and measurements
-        if simulation:
-            telemetry.simulate(manual_input)
-            camera.simulate(measurement)
-
-        # Compute setpoint
-        setpoint = manual_input.to_setpoint(measurement)
+        # Update simulation with new setpoint
+        if simulation_enabled:
+            simulator.update(setpoint, 1.0 / 60.0)
 
         # Compute relative input for indicators
         relative_yaw = wrap(setpoint.yaw - measurement.rotation.z)
@@ -196,7 +193,7 @@ def main():
         gui.batt_gauge.set_progress(measurement.battery)
 
         # Play audio warnings
-        if telemetry_state is Telemetry.State.CONNECTED or simulation:
+        if telemetry_state is Telemetry.State.CONNECTED or simulation_enabled:
             if measurement.position.z > 2.0:
                 audio.play(Audio.Track.ALTITUDE)
             if measurement.battery < 0.3:
@@ -212,7 +209,7 @@ def main():
             gui.camera_image.set_grayscale_image(surface)
 
         # On capture press
-        if manual_input is not None and manual_input.capture:
+        if capture:
 
             # Display shutter indicator and play sound
             gui.shutter_indicator.trigger()
@@ -224,7 +221,6 @@ def main():
         # Update telemetry input command
         #telemetry.set_setpoint(setpoint)
     
-    camera.stop()
     gui.quit()
 
 if __name__ == "__main__":
