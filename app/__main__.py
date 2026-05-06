@@ -160,12 +160,12 @@ def main():
                 case ControlMode.KEYBOARD:
                     keyboard.update()
                     setpoint = keyboard.to_setpoint(measurement) # TODO remove
-                    telemetry.set_input(keyboard)
+                    #telemetry.set_input(keyboard)
                     capture = keyboard.capture
                 case ControlMode.CONTROLLER:
                     controller.update()
                     setpoint = controller.to_setpoint(measurement) # TODO remove
-                    telemetry.set_input(controller)
+                    #telemetry.set_input(controller)
                     capture = controller.capture
 
         # Update simulation with new setpoint
