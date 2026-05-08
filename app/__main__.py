@@ -7,6 +7,7 @@ from app.gui import Gui
 from app.gui.audio import Audio
 from app.telemetry import Telemetry
 from app.planner import Planner
+from app.planner.example import ExamplePlanner
 from app.inputs import Input
 from app.inputs.controller import Controller
 from app.inputs.keyboard import Keyboard
@@ -26,7 +27,7 @@ def main():
     audio: Audio = Audio()
     controller: Input = Controller()
     keyboard: Input = Keyboard()
-    planner: Planner = Planner()
+    planner: Planner = ExamplePlanner()
     telemetry: Telemetry = Telemetry()
     logger: Logger = Logger()
     simulator: Simulator = Simulator()
