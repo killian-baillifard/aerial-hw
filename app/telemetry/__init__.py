@@ -1,31 +1,28 @@
-import os
-import logging
-import struct
-from threading import Thread
-import time
+import os, logging, struct, time
 import numpy as np
+import cv2
+from cv2.typing import MatLike
+from threading import Thread
 from enum import Enum
 from overrides import override
 from pyglm import glm
-from cv2.typing import MatLike
-from app.inputs import Input
 from cflib.cpx import CPXFunction
 import cflib.crtp
 from cflib.utils import uri_helper
 from cflib.crazyflie import Crazyflie
 from cflib.crazyflie.log import LogConfig
+from app.atomic import Atomic
+from app.inputs import Input
 from app.telemetry.measurement import Measurement
 from app.inputs.setpoint import Setpoint
-from app.sync import Atomic
-import cv2
 
 class Telemetry(Thread):
 
     RADIO_URI = uri_helper.uri_from_env(default="radio://0/20/2M/E7E7E7E702")
     WIFI_URI = uri_helper.uri_from_env(default="tcp://192.168.4.1:5000")
-    CAMERA_WIDTH = 324
-    CAMERA_HEIGHT = 244
-    PERIOD_MS = 20
+    CAMERA_WIDTH = 324  # px
+    CAMERA_HEIGHT = 244 # px
+    UPDATE_PERIOD = 20  # ms
 
     Z_RATE = (1.0 / 60.0)
 
@@ -43,7 +40,7 @@ class Telemetry(Thread):
         logging.basicConfig(level=logging.ERROR)
         cflib.crtp.init_drivers()
 
-        self.log_config = LogConfig("Telemetry", Telemetry.PERIOD_MS)
+        self.log_config = LogConfig("Telemetry", Telemetry.UPDATE_PERIOD)
         self.log_config.add_variable("stateEstimate.x")
         self.log_config.add_variable("stateEstimate.y")
         self.log_config.add_variable("stateEstimate.z")

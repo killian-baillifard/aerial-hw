@@ -3,13 +3,15 @@ from pyglm import glm
 import cv2
 from cv2.typing import MatLike
 from app import wrap
+from app.telemetry import Telemetry
 from app.telemetry.measurement import Measurement
+from app.inputs import Input
 from app.inputs.setpoint import Setpoint
 
 class Simulator:
 
     LINSPEED = 1.0
-    YAWRATE = np.pi / 4
+    YAWRATE = np.pi
     BATT_DECAY = 0.01
     M_PER_PX = 0.01
 
@@ -20,7 +22,7 @@ class Simulator:
         return self.measurement
     
     def get_last_frame(self) -> MatLike:
-        frame = np.zeros(shape=(244, 324, 3), dtype=np.uint8)
+        frame = np.zeros(shape=(Telemetry.CAMERA_HEIGHT, Telemetry.CAMERA_WIDTH, 3), dtype=np.uint8)
 
         # World → pixel: +X is UP (decreasing row), +Y is LEFT (decreasing col)
         cx, cy = frame.shape[1] // 2, frame.shape[0] // 2
@@ -44,20 +46,17 @@ class Simulator:
 
         return frame
     
-    def update(self, setpoint: Setpoint, dt: float) -> None:
+    def update(self, control_input: Input, setpoint: Setpoint, dt: float) -> None:
 
-        pos_delta = setpoint.position - self.measurement.position
-        yaw_delta = setpoint.yaw - self.measurement.rotation.z
+        roll = -control_input.position.y * (np.pi / 4.0)
+        pitch = -control_input.position.x * (np.pi / 4.0)
 
-        yaw_vec = glm.vec3(np.cos(self.measurement.rotation.z), np.sin(self.measurement.rotation.z), 0.0)
-        roll = (np.pi / 2) * glm.length(glm.cross(yaw_vec, glm.vec3(pos_delta.x, pos_delta.y, 0.0)))
-        pitch = (np.pi / 2) * glm.dot(yaw_vec.xy, pos_delta.xy)
-
-        self.measurement.position += pos_delta * Simulator.LINSPEED * dt
+        position_error = setpoint.position - self.measurement.position
+        self.measurement.position += position_error * Simulator.LINSPEED * dt
         if self.measurement.position.z < 0:
             self.measurement.position.z = 0
         
-        self.measurement.rotation.z += yaw_delta * Simulator.YAWRATE * dt
+        self.measurement.rotation.z += control_input.yaw * Simulator.YAWRATE * dt
         self.measurement.rotation.y = pitch
         self.measurement.rotation.x = roll
 
@@ -66,7 +65,8 @@ class Simulator:
         self.measurement.rotation.z = wrap(self.measurement.rotation.z)
         
         self.measurement.timestamp += dt
-        self.measurement.battery -= Simulator.BATT_DECAY * dt
+        self.measurement.battery = np.clip(self.measurement.battery - Simulator.BATT_DECAY * dt, 0.0, 1.0)
+
 
     def reset(self) -> None:
         self.measurement = Measurement(battery=1.0)

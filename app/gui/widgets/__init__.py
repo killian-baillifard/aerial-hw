@@ -1,5 +1,7 @@
 from pygame import Surface
 
+type Color = tuple[int, int, int, int]
+
 class Widget:
 
     instances: list["Widget"] = []

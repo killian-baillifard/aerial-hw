@@ -8,7 +8,7 @@ class VoiceWarningSystem:
         Audio.Track.FUEL_LOW: 6.0
     }
 
-    MIN_BATTERY = 10
+    MIN_BATTERY = 0.1
     MAX_ALTITUDE = 2.0
 
     def __init__(self, audio: Audio, enabled: bool = True) -> None:
@@ -26,7 +26,7 @@ class VoiceWarningSystem:
     def disable(self) -> None:
         self.enabled = False
 
-    def throttled_play(self, track: Audio.Track) -> None:
+    def rate_limited_play(self, track: Audio.Track) -> None:
         if not self.cooldowns[track]:
             self.audio.play(track)
             self.cooldowns[track] = VoiceWarningSystem.COOLDOWNS[track]
@@ -35,13 +35,17 @@ class VoiceWarningSystem:
 
         # Decrement cooldowns
         for key, value in self.cooldowns.items():
-            if value > 0:
+            if value > 0.0:
                 self.cooldowns[key] = max(0.0, value - dt)
+
+        # Early return if disabled
+        if not self.enabled:
+            return
 
         # Test battery warning condition
         if measurement.battery < VoiceWarningSystem.MIN_BATTERY:
-            self.throttled_play(Audio.Track.FUEL_LOW)
+            self.rate_limited_play(Audio.Track.FUEL_LOW)
 
         # Test altitude warning condition
-        if measurement.position.z < VoiceWarningSystem.MAX_ALTITUDE:
-            self.throttled_play(Audio.Track.ALTITUDE)
+        if measurement.position.z > VoiceWarningSystem.MAX_ALTITUDE:
+            self.rate_limited_play(Audio.Track.ALTITUDE)

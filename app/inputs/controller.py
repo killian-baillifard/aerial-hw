@@ -14,15 +14,9 @@ class Controller(Input):
     def __init__(self) -> None:
         super().__init__()
         self.joystick = None
-        self.prev_a = False
-
-    def reset(self) -> None:
-        super().reset()
-        self.joystick = None
-        self.prev_a = False
 
     @override
-    def update(self) -> None:
+    def update(self, dt: float) -> None:
         
         # Detect controller for plug and play behaviour
         if joystick.get_count() > 0:
@@ -43,13 +37,8 @@ class Controller(Input):
             self.position.z = self.position.z if np.abs(self.position.z) > Controller.DEADZONE else 0
             self.yaw = self.yaw if np.abs(self.yaw) > Controller.DEADZONE else 0
 
-            # Map A button to capture
-            a = self.joystick.get_button(Controller.BUTTONS_MAPPING["A"])
-            self.capture = a and not self.prev_a
-            self.prev_a = a
-
         elif self.joystick is not None:
-            self.reset()
+            self.joystick = None
 
     def is_connected(self) -> bool:
         return self.joystick is not None

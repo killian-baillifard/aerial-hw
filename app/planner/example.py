@@ -25,7 +25,7 @@ class ExamplePlanner(Planner):
 
         if self.i < len(self.waypoints):
             setpoint = Setpoint(self.waypoints[self.i], 0.0)
-            if glm.distance(self.waypoints[self.i], measurement.position) < Planner.TOLERANCE:
+            if glm.distance(self.waypoints[self.i], measurement.position) < ExamplePlanner.TOLERANCE:
                 self.i += 1
             return setpoint
         else:
