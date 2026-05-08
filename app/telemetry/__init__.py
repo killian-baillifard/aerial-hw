@@ -23,8 +23,8 @@ class Telemetry(Thread):
 
     RADIO_URI = uri_helper.uri_from_env(default="radio://0/20/2M/E7E7E7E702")
     WIFI_URI = uri_helper.uri_from_env(default="tcp://192.168.4.1:5000")
-    CAM_WIDTH = 324
-    CAM_HEIGHT = 244
+    CAMERA_WIDTH = 324
+    CAMERA_HEIGHT = 244
     PERIOD_MS = 20
 
     Z_RATE = (1.0 / 60.0)
@@ -107,7 +107,7 @@ class Telemetry(Thread):
             while len(buf) < size:
                 buf.extend(self.crazyflie.link.cpx.receivePacket(CPXFunction.APP).data)
             img = np.frombuffer(buf, dtype=np.uint8)
-            bayer = img.reshape((Telemetry.CAM_HEIGHT, Telemetry.CAM_WIDTH))
+            bayer = img.reshape((Telemetry.CAMERA_HEIGHT, Telemetry.CAMERA_WIDTH))
             color = cv2.cvtColor(bayer, cv2.COLOR_BayerBG2RGB)
             return color
         else:
