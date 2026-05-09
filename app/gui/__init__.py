@@ -15,6 +15,7 @@ class Gui:
 
     CLEAR_COLOR = (30, 30, 30)
     JOYSTICKS_LEN = 200
+    PICTH_DISPLACEMENT = 250
 
     def __init__(self) -> None:
 
@@ -62,15 +63,16 @@ class Gui:
         self.layout.y_indicator.set_text(f"[Y = {measurement.position.y:.3f} m]")
         self.layout.z_indicator.set_text(f"[Z = {measurement.position.z:.3f} m]")
         self.layout.yaw_indicator.set_text(f"[YAW = {np.rad2deg(measurement.rotation.z):.3f} °]")
-        self.layout.roll_indicator.set_roll(measurement.rotation.x)
-        self.layout.pitch_indicator.set_pitch(measurement.rotation.y * Gui.JOYSTICKS_LEN)
+        self.layout.roll_indicator.set_roll(-measurement.rotation.x)
+        self.layout.pitch_indicator.set_pitch(-measurement.rotation.y * Gui.PICTH_DISPLACEMENT)
         self.layout.batt_indicator.set_text(f"[BATT = {int(100 * measurement.battery):d} %]")
         self.layout.batt_gauge.set_progress(measurement.battery)
 
-        # Update camera image
+        # Update camera image and scene
         h, w = frame.shape[:2]
         surface = pygame.image.frombuffer(frame.tobytes(), (w, h), "RGB")
         self.layout.camera_image.set_color_image(surface)
+        self.layout.scene.set_view(measurement.position, measurement.rotation)
 
         # Update command indicators
         self.layout.xy_joystick.set_delta(glm.ivec2(-command.velocity.y * Gui.JOYSTICKS_LEN, -command.velocity.x * Gui.JOYSTICKS_LEN))

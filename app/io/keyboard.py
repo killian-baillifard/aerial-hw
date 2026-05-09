@@ -54,4 +54,4 @@ class Keyboard(Command):
         self.velocity.x = Keyboard.virtual_axis(self.velocity.x, keys, K_w, K_s, dt)
         self.velocity.y = Keyboard.virtual_axis(self.velocity.y, keys, K_a, K_d, dt)
         self.velocity.z = Keyboard.virtual_axis(self.velocity.z, keys, K_LSHIFT, K_LCTRL, dt)
-        self.yaw_rate = Keyboard.virtual_axis(self.yaw_rate, keys, K_q, K_e, dt)
+        self.yaw_rate = Keyboard.virtual_axis(self.yaw_rate, keys, K_q, K_e, dt) * Command.YAW_RATE

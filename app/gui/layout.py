@@ -8,6 +8,7 @@ from app.gui.widgets.roll import Roll
 from app.gui.widgets.pitch import Pitch
 from app.gui.widgets.shutter import Shutter
 from app.gui.widgets.gauge import Gauge
+from app.gui.widgets.scene import Scene
 
 class Layout:
 
@@ -42,16 +43,17 @@ class Layout:
         self.rec_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "REC [OFF]", Layout.SMALL_BTN_WIDTH)
 
         # Image and overlay
-        self.camera_image = Image(glm.uvec2(0, Layout.TOP_BAR + 2 * Layout.MARGIN), Layout.WINDOW_WIDTH, Layout.WINDOW_HEIGHT)
-        self.xy_joystick = Joystick(Layout.IMAGE_CENTER, glm.ivec2(0, 0))
+        self.camera_image = Image(glm.uvec2(0, Layout.TOP_BAR + 2 * Layout.MARGIN), Layout.WINDOW_WIDTH, Layout.WINDOW_HEIGHT, z_index=0)
+        self.scene = Scene(glm.uvec2(0, Layout.TOP_BAR + 2 * Layout.MARGIN), glm.vec2(Layout.WINDOW_WIDTH, Layout.WINDOW_HEIGHT), z_index=1)
+        self.xy_joystick = Joystick(Layout.IMAGE_CENTER, glm.ivec2(0, 0), z_index=2)
         _ = Label(glm.uvec2(Layout.IMAGE_CENTER.x + Layout.MARGIN, Layout.IMAGE_CENTER.y + Layout.MARGIN), "XY", z_index=2)
-        self.z_joystick = Joystick(glm.uvec2(Layout.WINDOW_WIDTH - 2 * Layout.MARGIN, Layout.IMAGE_CENTER.y), glm.ivec2(0, 0))
+        self.z_joystick = Joystick(glm.uvec2(Layout.WINDOW_WIDTH - 2 * Layout.MARGIN, Layout.IMAGE_CENTER.y), glm.ivec2(0, 0), z_index=2)
         _ = Label(glm.uvec2(Layout.WINDOW_WIDTH - 4 * Layout.MARGIN - 2, Layout.IMAGE_CENTER.y - Layout.MARGIN + 2), "Z", z_index=2)
-        self.yaw_joystick = Joystick(glm.uvec2(Layout.IMAGE_CENTER.x, Layout.TOP_BAR + Layout.WINDOW_HEIGHT), glm.ivec2(0, 0))
+        self.yaw_joystick = Joystick(glm.uvec2(Layout.IMAGE_CENTER.x, Layout.TOP_BAR + Layout.WINDOW_HEIGHT), glm.ivec2(0, 0), z_index=2)
         _ = Label(glm.uvec2(Layout.IMAGE_CENTER.x - Layout.MARGIN - 7, Layout.TOP_BAR + Layout.WINDOW_HEIGHT - 3 * Layout.MARGIN), "YAW", z_index=2)
-        self.roll_indicator = Roll(Layout.IMAGE_CENTER, 0.0, 1)
-        self.pitch_indicator = Pitch(Layout.IMAGE_CENTER, 0.0, 1)
-        self.shutter_indicator = Shutter(Layout.IMAGE_CENTER, glm.uvec2(Layout.IMAGE_CENTER.x - Layout.MARGIN, Layout.WINDOW_HEIGHT / 2 - Layout.MARGIN))
+        self.roll_indicator = Roll(Layout.IMAGE_CENTER, 0.0, z_index=2)
+        self.pitch_indicator = Pitch(Layout.IMAGE_CENTER, 0.0, z_index=2)
+        self.shutter_indicator = Shutter(Layout.IMAGE_CENTER, glm.uvec2(Layout.IMAGE_CENTER.x - Layout.MARGIN, Layout.WINDOW_HEIGHT / 2 - Layout.MARGIN), z_index=2)
 
         # Bottom bar
         self.x_indicator = Label(glm.uvec2(Layout.MARGIN, Layout.TOP_BAR + Layout.WINDOW_HEIGHT + 3 * Layout.MARGIN), "[X = 0.000 m]", z_index=2)

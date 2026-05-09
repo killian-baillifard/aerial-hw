@@ -14,17 +14,13 @@ from app import Link
 from app.generics import Atomic, Event
 from app.io import Command, Setpoint
 from app.io import Measurement
+from app.telemetry.camera import WIDTH, HEIGHT
 
 class Telemetry(Thread):
 
     RADIO_URI       = uri_helper.uri_from_env(default="radio://0/20/2M/E7E7E7E702")
     WIFI_URI        = uri_helper.uri_from_env(default="tcp://192.168.4.1:5000")
-
-    CAMERA_WIDTH    = 324   # px
-    CAMERA_HEIGHT   = 244   # px
-
     UPDATE_PERIOD   = 20    # ms
-
     TKOF_HEIGHT     = 1.0   # m
     LAND_HEIGHT     = 0.1   # m
     TOLERANCE       = 0.05  # m
@@ -60,7 +56,7 @@ class Telemetry(Thread):
         self.link: Atomic[Link | None] = Atomic(None)
         self.connected: Atomic[bool] = Atomic(False)
         self.measurement: Atomic[Measurement] = Atomic(Measurement())
-        self.frame: Atomic[MatLike] = Atomic(np.zeros(shape=(Telemetry.CAMERA_HEIGHT, Telemetry.CAMERA_WIDTH, 3), dtype=np.uint8))
+        self.frame: Atomic[MatLike] = Atomic(np.zeros(shape=(HEIGHT, WIDTH, 3), dtype=np.uint8))
         self.command: Command = Command()
         self.z: float = 0.0
 
@@ -210,7 +206,7 @@ class Telemetry(Thread):
                 while len(buf) < size:
                     buf.extend(self.crazyflie.link.cpx.receivePacket(CPXFunction.APP).data)
                 img = np.frombuffer(buf, dtype=np.uint8)
-                bayer = img.reshape(shape=(Telemetry.CAMERA_HEIGHT, Telemetry.CAMERA_WIDTH))
+                bayer = img.reshape(shape=(HEIGHT, WIDTH))
                 color = cv2.cvtColor(bayer, cv2.COLOR_BayerBG2RGB)
                 self.frame.set(color)
             else:

@@ -1,19 +1,10 @@
 import numpy as np
 from pyglm import glm
-from app.telemetry import Telemetry
-
-CAMERA_FOV_Y: float             = 1.5                   # radians
-CAMERA_RESOLUTION: float        = 300                   # px
-CAMERA_NEAR_PLANE: float        = 0.01                  # m
-CAMERA_ASPECT_RATIO             = Telemetry.CAMERA_WIDTH / Telemetry.CAMERA_HEIGHT
-CAMERA_PROJECTION: glm.mat4x4   = glm.infinitePerspective(CAMERA_FOV_Y, CAMERA_ASPECT_RATIO, CAMERA_NEAR_PLANE)
+from app.telemetry.camera import *
 
 class Ray:
 
-    FORWARD = glm.vec3(1, 0, 0)
-    UP = glm.vec3(0, 0, 1)
-
-    def __init__(self, point: glm.vec2, position: glm.vec3, quaternion: glm.quat) -> None:
+    def __init__(self, point: glm.vec2, position: glm.vec3, rotation: glm.vec3) -> None:
         """
         Initialize a ray object from a raw camera measurement.
 
@@ -23,13 +14,13 @@ class Ray:
             Ray origin in screen space.
         position : glm.vec3
             Camera position in world space.
-        quaternion : glm.quat
+        rotation : glm.vec3
             Camera orientation in world space.
         """
 
         self.point = point
         self.position = position
-        self.quaternion = quaternion
+        self.rotation = euler_to_quaternion(rotation)
 
     def triangulate(self, other: "Ray") -> glm.vec3:
         """
@@ -84,25 +75,16 @@ class Ray:
             Ray unit direction in world space.
         """
 
-        # Compute view matrix
-        forward = self.quaternion * Ray.FORWARD
-        up = self.quaternion * Ray.UP
-        view = glm.lookAt(
-            self.position,
-            self.position + forward,
-            up
-        )
-
         # Compute screen point in NDC
         ndc = glm.vec4(
-            (2.0 * self.point.x / CAMERA_RESOLUTION) - 1.0,
-            1.0 - (2.0 * self.point.y / CAMERA_RESOLUTION),     # Flip screen y coordinate
-            -1.0,                                               # Near plane in NDC
+            (2.0 * self.point.x / WIDTH) - 1.0,
+            1.0 - (2.0 * self.point.y / HEIGHT),    # Flip screen y coordinate
+            -1.0,                                   # Near plane in NDC
             1.0
         )
 
         # Back-project to world space
-        world = glm.inverse(CAMERA_PROJECTION * view) * ndc     
+        world = glm.inverse(PROJECTION * view(self.position, self.rotation)) * ndc     
         world /= world.w                                        # Divide perspective
-        ray = glm.normalize(glm.vec3(world) - self.position)    # Compute normalized ray
+        ray = glm.normalize(glm.vec3(world) - self.position)    # Normalize ray
         return self.position, ray

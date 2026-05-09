@@ -43,7 +43,7 @@ class Controller(Command):
             # Update command
             self.velocity.xy = velocity
             self.velocity.z = climb_rate
-            self.yaw_rate = yaw_rate
+            self.yaw_rate = yaw_rate * Command.YAW_RATE
 
         elif self.joystick is not None:
             self.joystick = None

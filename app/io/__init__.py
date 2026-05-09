@@ -5,9 +5,11 @@ from app import wrap
 
 class Command:
 
+    YAW_RATE = np.pi / 2
+
     def __init__(self, velocity: glm.vec3 = glm.vec3(0.0, 0.0, 0.0), yaw_rate: float = 0.0) -> None:
         self.velocity = velocity
-        self.yaw_rate = yaw_rate
+        self.yaw_rate = yaw_rate * Command.YAW_RATE
     
     def update(self, dt: float) -> None:
         raise NotImplementedError()
@@ -63,14 +65,17 @@ class Measurement:
 
         # Change to world frame of reference
         v = glm.rotateZ(command.velocity, self.rotation.z)
+        p = self.position + v * dt
+        if p.z < 0:
+            p.z = 0.0
 
         # Integrate
         return Measurement(
             self.timestamp + dt,
-            self.position + v * dt,
+            p,
             glm.vec3(
-                -v.y * (np.pi / 4.0),
-                -v.x * (np.pi / 4.0),
+                -command.velocity.y * (np.pi / 16.0),
+                command.velocity.x * (np.pi / 16.0),
                 wrap(self.rotation.z + command.yaw_rate * dt)
             ),
             np.clip(self.battery - Measurement.BATT_SIM_DECAY_RATE * dt, 0.0, 1.0)
