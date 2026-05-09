@@ -15,8 +15,7 @@ class Layout:
     WINDOW_WIDTH = 1280
     WINDOW_HEIGHT = 720
     MARGIN = 10
-    SMALL_BTN_WIDTH = 150
-    FULL_BTN_WIDTH = 200
+    BTN_WIDTH = 150
     LABEL_WIDTH = 200
     TOP_BAR = 30
     BOTTOM_BAR = 30
@@ -28,19 +27,19 @@ class Layout:
 
         # Top bar
         x = Layout.MARGIN
-        self.link_btn = Button(glm.uvec2(x, Layout.MARGIN), "LINK [SIM]", Layout.SMALL_BTN_WIDTH)
-        x += Layout.SMALL_BTN_WIDTH + Layout.MARGIN
-        self.ctrl_btn = Button(glm.uvec2(x, Layout.MARGIN), "CTRL [MAN]", Layout.SMALL_BTN_WIDTH)
-        x += Layout.SMALL_BTN_WIDTH + Layout.MARGIN
-        self.source_btn = Button(glm.uvec2(x, Layout.MARGIN), "KEYBOARD", Layout.FULL_BTN_WIDTH)
-        x += Layout.FULL_BTN_WIDTH + Layout.MARGIN
-        self.con_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "CON [OFF]", Layout.SMALL_BTN_WIDTH)
-        x += Layout.SMALL_BTN_WIDTH + Layout.MARGIN
-        self.vws_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "VWS [ON]", Layout.SMALL_BTN_WIDTH, latched=True)
-        x += Layout.SMALL_BTN_WIDTH + Layout.MARGIN
-        self.tkof_land_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "LANDED", Layout.SMALL_BTN_WIDTH, disabled=True)
-        x += Layout.SMALL_BTN_WIDTH + Layout.MARGIN
-        self.rec_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "REC [OFF]", Layout.SMALL_BTN_WIDTH)
+        self.link_btn = Button(glm.uvec2(x, Layout.MARGIN), "LINK [SIM]", Layout.BTN_WIDTH)
+        x += Layout.BTN_WIDTH + Layout.MARGIN
+        self.ctrl_btn = Button(glm.uvec2(x, Layout.MARGIN), "CTRL [MAN]", Layout.BTN_WIDTH)
+        x += Layout.BTN_WIDTH + Layout.MARGIN
+        self.source_btn = Button(glm.uvec2(x, Layout.MARGIN), "KEYBOARD", Layout.BTN_WIDTH)
+        x += Layout.BTN_WIDTH + Layout.MARGIN
+        self.con_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "CON [OFF]", Layout.BTN_WIDTH)
+        x += Layout.BTN_WIDTH + Layout.MARGIN
+        self.vws_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "VWS [ON]", Layout.BTN_WIDTH, latched=True)
+        x += Layout.BTN_WIDTH + Layout.MARGIN
+        self.tkof_land_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "LANDED", Layout.BTN_WIDTH, disabled=True)
+        x += Layout.BTN_WIDTH + Layout.MARGIN
+        self.rec_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "REC [OFF]", Layout.BTN_WIDTH)
 
         # Image and overlay
         self.camera_image = Image(glm.uvec2(0, Layout.TOP_BAR + 2 * Layout.MARGIN), Layout.WINDOW_WIDTH, Layout.WINDOW_HEIGHT, z_index=0)

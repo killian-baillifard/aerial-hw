@@ -129,9 +129,9 @@ class Gui:
                 self.layout.ctrl_btn.set_text("CTRL [PLAN]")
                 match self.lap_type:
                     case PlanStage.SCAN:
-                        self.layout.source_btn.set_text("SCAN STAGE")
+                        self.layout.source_btn.set_text("STAGE [SCAN]")
                     case PlanStage.RACE:
-                        self.layout.source_btn.set_text("RACE STAGE")
+                        self.layout.source_btn.set_text("STAGE [RACE]")
 
     def ctrl_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)

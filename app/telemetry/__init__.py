@@ -140,7 +140,7 @@ class Telemetry(Thread):
     def simulate_crazyflie(self, dt: float) -> None:
 
         # Step simulation
-        measurement = self.measurement.read().simulate(self.command, dt)
+        measurement = self.measurement.read()
         measurement = measurement.simulate(self.command, dt)
 
         # Overlay simulation on new frame

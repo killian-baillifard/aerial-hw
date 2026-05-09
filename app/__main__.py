@@ -49,7 +49,7 @@ class App:
         pass
 
     def manual_controls_event_handler(self) -> None:
-        self.telemetry.z = self.telemetry.measurement.get().position.z
+        self.telemetry.z = self.telemetry.measurement.read().position.z
 
     def run(self) -> None:
         quit: bool      = False
