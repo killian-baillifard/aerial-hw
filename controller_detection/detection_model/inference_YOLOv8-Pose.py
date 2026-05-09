@@ -3,16 +3,16 @@ from ultralytics import YOLO
 import cv2
 
 # Load your custom trained model
-model = YOLO('models/yolov8n_v1_r1/weights/best.pt')
+model = YOLO('models/yolov8n_v2_r2/weights/best.pt')
 
 # Get test image folder path
-test_folder = 'dataset/annotated_gates_v1_split/val/'
+test_folder = 'dataset/annotated_gates_v2_split/test/'
 
 # Build image list (sorted) and derive label path from image basename to guarantee alignment
 test_images = sorted([f for f in os.listdir(os.path.join(test_folder, 'images')) if f.lower().endswith(('.jpg', '.png', '.jpeg'))])
 
 # Choose image index
-image_idx = 2 # 3 # 12 # 9
+image_idx = 19 # 3 # 12 # 9
 test_image_path = os.path.join(test_folder, 'images', test_images[image_idx])
 label_path = os.path.join(test_folder, 'labels', os.path.splitext(test_images[image_idx])[0] + '.txt')
 
@@ -59,7 +59,7 @@ for result in results:
             confs = keypoints.conf[i].cpu().numpy() # Array of 4 confidences
             
             print(f"\n--- Gate {i+1} ---")
-            corner_names = ["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"]
+            corner_names = ["Bottom-Left", "Top-Left", "Top-Right", "Bottom-Right"]
             
             for j in range(4):
                 pred_x, pred_y = int(coords[j][0]), int(coords[j][1])

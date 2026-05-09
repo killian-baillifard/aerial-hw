@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 from queue import Queue
+from ultralytics import YOLO
 
 DEBUG = True
 
@@ -38,10 +39,13 @@ class DetectionController:
         self.current_sensor_data = None
         self.starting_position = None
 
-        # State machine
+        # State Machine
         self.state = "takeoff" # takeoff, search, pass_gate, land
 
-        # control command
+        # Detection
+        self.model = YOLO('detection_model/models/yolov8s_v2_r1/weights/best.pt')
+
+        # Control Command
         self.position_tolerance = 0.05 # [m]
         self.yaw_tolerance = np.radians(5) # [rad]
         self.current_setpoint = None
@@ -51,6 +55,24 @@ class DetectionController:
 
     def detect_gates(self, camera_data):
 
+        # Run inference on the camera data
+        # Note: iou=0.7 allows bounding boxes to heavily overlap without being filtered out
+        results = self.model.predict(source=camera_data, conf=0.5, iou=0.7)
+        
+        # Extract coordinates and confidences
+        keypoints = results.keypoints
+        if keypoints is not None and keypoints.xy.numel() > 0:
+            for i in range(len(keypoints.xy)):
+                coords = keypoints.xy[i].cpu().numpy()  # Array of 4 (x,y) corners
+                confs = keypoints.conf[i].cpu().numpy() # Array of 4 confidences
+                
+                print(f"\n--- Gate {i+1} ---")
+                corner_names = ["Bottom-Left", "Top-Left", "Top-Right", "Bottom-Right"]
+                
+                for j in range(4):
+                    pred_x, pred_y = int(coords[j][0]), int(coords[j][1])
+                    print(f"{corner_names[j]}: ({pred_x}, {pred_y}), Conf: {confs[j]:.2f}")
+                
         pass
 
     def set_control_command(self):
