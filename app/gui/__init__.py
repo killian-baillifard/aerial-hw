@@ -2,14 +2,14 @@ import os, pygame
 import numpy as np
 from cv2.typing import MatLike
 from pyglm import glm
-from app import Link, LapType, ControlMode, InputSource
+from app import Link, PlanStage, ControlMode, CommandSource
 from app.generics import Event
 from app.gui.widgets import Widget
 from app.gui.layout import Layout
 from app.gui.audio import Audio
 from app.gui.voicewarningsystem import VoiceWarningSystem
-from app.telemetry.measurement import Measurement
-from app.inputs import Command
+from app.io import Measurement
+from app.io import Command
 
 class Gui:
 
@@ -38,11 +38,12 @@ class Gui:
         self.land_event: Event = Event()
         self.start_recording_event: Event = Event()
         self.stop_recording_event: Event = Event()
+        self.manual_controls_event: Event = Event()
 
         # Register event listeners
         self.layout.link_btn.release_event      += self.link_btn_click_handler
         self.layout.ctrl_btn.release_event      += self.ctrl_btn_click_handler
-        self.layout.src_lap_btn.release_event   += self.src_lap_btn_click_handler
+        self.layout.source_btn.release_event    += self.source_btn_click_handler
         self.layout.con_btn.release_event       += self.con_btn_click_handler
         self.layout.vws_btn.release_event       += self.vws_btn_click_handler
         self.layout.tkof_land_btn.release_event += self.tkof_land_btn_click_handler
@@ -51,12 +52,12 @@ class Gui:
         # Initialize state
         self.link = Link.SIMULATION
         self.control_mode = ControlMode.MANUAL
-        self.input_source = InputSource.KEYBOARD
-        self.lap_type = LapType.SCAN
+        self.input_source = CommandSource.KEYBOARD
+        self.lap_type = PlanStage.SCAN
 
     def update(self, measurement: Measurement, frame: MatLike, command: Command, dt: float) -> bool:
 
-        # Update sensors measurement indicators
+        # Update measurement indicators
         self.layout.x_indicator.set_text(f"[X = {measurement.position.x:.3f} m]")
         self.layout.y_indicator.set_text(f"[Y = {measurement.position.y:.3f} m]")
         self.layout.z_indicator.set_text(f"[Z = {measurement.position.z:.3f} m]")
@@ -71,10 +72,9 @@ class Gui:
         surface = pygame.image.frombuffer(frame.tobytes(), (w, h), "RGB")
         self.layout.camera_image.set_color_image(surface)
 
-        # Update input indicators
-        dz = np.clip(command.altitude - measurement.position.z, -1.0, 1.0)
+        # Update command indicators
         self.layout.xy_joystick.set_delta(glm.ivec2(-command.velocity.y * Gui.JOYSTICKS_LEN, -command.velocity.x * Gui.JOYSTICKS_LEN))
-        self.layout.z_joystick.set_delta(glm.ivec2(0, -dz * Gui.JOYSTICKS_LEN))
+        self.layout.z_joystick.set_delta(glm.ivec2(0, -command.velocity.z * Gui.JOYSTICKS_LEN))
         self.layout.yaw_joystick.set_delta(glm.ivec2(-command.yaw_rate * Gui.JOYSTICKS_LEN, 0))
 
         # Update capture indicator
@@ -114,23 +114,23 @@ class Gui:
             case Link.RADIO:
                 self.layout.link_btn.set_text("LINK [RADIO]")
 
-    def update_control_variant(self) -> None:
+    def update_control_mode(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
         match self.control_mode:
             case ControlMode.MANUAL:
                 self.layout.ctrl_btn.set_text("CTRL [MAN]")
                 match self.input_source:
-                    case InputSource.KEYBOARD:
-                        self.layout.src_lap_btn.set_text("KEYBOARD")
-                    case InputSource.CONTROLLER:
-                        self.layout.src_lap_btn.set_text("CONTROLLER")
+                    case CommandSource.KEYBOARD:
+                        self.layout.source_btn.set_text("KEYBOARD")
+                    case CommandSource.CONTROLLER:
+                        self.layout.source_btn.set_text("CONTROLLER")
             case ControlMode.PLANNER:
                 self.layout.ctrl_btn.set_text("CTRL [PLAN]")
                 match self.lap_type:
-                    case LapType.SCAN:
-                        self.layout.src_lap_btn.set_text("SCAN STAGE")
-                    case LapType.RACE:
-                        self.layout.src_lap_btn.set_text("RACE STAGE")
+                    case PlanStage.SCAN:
+                        self.layout.source_btn.set_text("SCAN STAGE")
+                    case PlanStage.RACE:
+                        self.layout.source_btn.set_text("RACE STAGE")
 
     def ctrl_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
@@ -139,24 +139,25 @@ class Gui:
                 self.control_mode = ControlMode.PLANNER
             case ControlMode.PLANNER:
                 self.control_mode = ControlMode.MANUAL
-        self.update_control_variant()
+                self.manual_controls_event()
+        self.update_control_mode()
 
-    def src_lap_btn_click_handler(self) -> None:
+    def source_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
         match self.control_mode:
             case ControlMode.MANUAL:
                 match self.input_source:
-                    case InputSource.KEYBOARD:
-                        self.input_source = InputSource.CONTROLLER
-                    case InputSource.CONTROLLER:
-                        self.input_source = InputSource.KEYBOARD
+                    case CommandSource.KEYBOARD:
+                        self.input_source = CommandSource.CONTROLLER
+                    case CommandSource.CONTROLLER:
+                        self.input_source = CommandSource.KEYBOARD
             case ControlMode.PLANNER:
                 match self.lap_type:
-                    case LapType.SCAN:
-                        self.lap_type = LapType.RACE
-                    case LapType.RACE:
-                        self.lap_type = LapType.SCAN
-        self.update_control_variant()
+                    case PlanStage.SCAN:
+                        self.lap_type = PlanStage.RACE
+                    case PlanStage.RACE:
+                        self.lap_type = PlanStage.SCAN
+        self.update_control_mode()
 
     def con_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)

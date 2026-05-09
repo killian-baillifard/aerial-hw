@@ -31,7 +31,7 @@ class Layout:
         x += Layout.SMALL_BTN_WIDTH + Layout.MARGIN
         self.ctrl_btn = Button(glm.uvec2(x, Layout.MARGIN), "CTRL [MAN]", Layout.SMALL_BTN_WIDTH)
         x += Layout.SMALL_BTN_WIDTH + Layout.MARGIN
-        self.src_lap_btn = Button(glm.uvec2(x, Layout.MARGIN), "KEYBOARD", Layout.FULL_BTN_WIDTH)
+        self.source_btn = Button(glm.uvec2(x, Layout.MARGIN), "KEYBOARD", Layout.FULL_BTN_WIDTH)
         x += Layout.FULL_BTN_WIDTH + Layout.MARGIN
         self.con_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "CON [OFF]", Layout.SMALL_BTN_WIDTH)
         x += Layout.SMALL_BTN_WIDTH + Layout.MARGIN

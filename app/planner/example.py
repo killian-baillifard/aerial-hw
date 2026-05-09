@@ -1,8 +1,8 @@
 from overrides import override
 from pyglm import glm
 from cv2.typing import MatLike
-from app.telemetry.measurement import Measurement
-from app.inputs import Setpoint
+from app.io import Measurement
+from app.io import Setpoint
 from app.planner import Planner
 
 class ExamplePlanner(Planner):

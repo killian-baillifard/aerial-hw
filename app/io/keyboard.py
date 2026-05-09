@@ -3,7 +3,7 @@ from overrides import override
 from pygame import key
 from pygame.key import ScancodeWrapper
 from pygame.locals import *
-from app.inputs import Command
+from app.io import Command
 
 class Keyboard(Command):
 
@@ -11,7 +11,6 @@ class Keyboard(Command):
 
     def __init__(self) -> None:
         super().__init__()
-        self.climb_rate = 0.0
 
     @staticmethod
     def virtual_axis(axis: float, keys: ScancodeWrapper, inc_key: int, dec_key: int, dt: float) -> float:
@@ -54,10 +53,5 @@ class Keyboard(Command):
         # Update virtual axes
         self.velocity.x = Keyboard.virtual_axis(self.velocity.x, keys, K_w, K_s, dt)
         self.velocity.y = Keyboard.virtual_axis(self.velocity.y, keys, K_a, K_d, dt)
+        self.velocity.z = Keyboard.virtual_axis(self.velocity.z, keys, K_LSHIFT, K_LCTRL, dt)
         self.yaw_rate = Keyboard.virtual_axis(self.yaw_rate, keys, K_q, K_e, dt)
-        self.climb_rate = Keyboard.virtual_axis(self.climb_rate, keys, K_LSHIFT, K_LCTRL, dt)
-        self.update_altitude(self.climb_rate, dt)
-
-        # Raise capture flag on spacebar rising edge
-        self.capture = keys[K_SPACE] and not self.prev_space
-        self.prev_space = keys[K_SPACE]

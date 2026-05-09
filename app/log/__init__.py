@@ -4,7 +4,7 @@ import cv2
 import atexit
 from datetime import datetime
 from cv2.typing import MatLike
-from app.telemetry.measurement import Measurement
+from app.io import Measurement
 
 class Logger:
 

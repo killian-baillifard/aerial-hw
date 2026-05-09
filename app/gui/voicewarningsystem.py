@@ -1,5 +1,5 @@
 from app.gui.audio import Audio
-from app.telemetry.measurement import Measurement
+from app.io import Measurement
 
 class VoiceWarningSystem:
 

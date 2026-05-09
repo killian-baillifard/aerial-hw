@@ -2,7 +2,7 @@ import numpy as np
 from pyglm import glm
 from overrides import override
 from pygame import joystick
-from app.inputs import Command
+from app.io import Command
 
 class Controller(Command):
 
@@ -40,10 +40,10 @@ class Controller(Command):
             velocity = velocity if glm.length(velocity) > Controller.DEADZONE else glm.vec2(0.0, 0.0)
             yaw_rate = yaw_rate if np.abs(yaw_rate) > Controller.DEADZONE else 0
 
-            # Assign sticks inputs and integrate triggers inputs
-            self.velocity = velocity
+            # Update command
+            self.velocity.xy = velocity
+            self.velocity.z = climb_rate
             self.yaw_rate = yaw_rate
-            self.update_altitude(climb_rate, dt)
 
         elif self.joystick is not None:
             self.joystick = None

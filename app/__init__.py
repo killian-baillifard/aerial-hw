@@ -10,11 +10,11 @@ class ControlMode(Enum):
     MANUAL  = 0
     PLANNER = 1
 
-class InputSource(Enum):
+class CommandSource(Enum):
     KEYBOARD    = 0
     CONTROLLER  = 1
 
-class LapType(Enum):
+class PlanStage(Enum):
     SCAN    = 0
     RACE    = 1
 

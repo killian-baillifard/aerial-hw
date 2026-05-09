@@ -1,7 +1,6 @@
 import os, logging, struct, time
 import numpy as np
 import cv2
-from copy import deepcopy
 from cv2.typing import MatLike
 from threading import Thread
 from overrides import override
@@ -11,10 +10,10 @@ from cflib.cpx import CPXFunction
 from cflib.utils import uri_helper
 from cflib.crazyflie import Crazyflie
 from cflib.crazyflie.log import LogConfig
-from app import Link, wrap
+from app import Link
 from app.generics import Atomic, Event
-from app.inputs import Command, Setpoint
-from app.telemetry.measurement import Measurement
+from app.io import Command, Setpoint
+from app.io import Measurement
 
 class Telemetry(Thread):
 
@@ -60,9 +59,10 @@ class Telemetry(Thread):
         # Telemetry state
         self.link: Atomic[Link | None] = Atomic(None)
         self.connected: Atomic[bool] = Atomic(False)
-        self.last_measurement: Atomic[Measurement] = Atomic(Measurement(battery=1.0))
-        self.last_frame: Atomic[MatLike] = Atomic(np.zeros(shape=(Telemetry.CAMERA_HEIGHT, Telemetry.CAMERA_WIDTH, 3), dtype=np.uint8))
-        self.last_command: Command = Command()
+        self.measurement: Atomic[Measurement] = Atomic(Measurement())
+        self.frame: Atomic[MatLike] = Atomic(np.zeros(shape=(Telemetry.CAMERA_HEIGHT, Telemetry.CAMERA_WIDTH, 3), dtype=np.uint8))
+        self.command: Command = Command()
+        self.z: float = 0.0
 
         # Start camera thread
         self.start()
@@ -83,7 +83,7 @@ class Telemetry(Thread):
         battery = float(data["pm.batteryLevel"]) / 100.0
 
         # Set latest measurement
-        self.last_measurement.set(Measurement(timestamp, position, rotation, battery))
+        self.measurement.set(Measurement(timestamp, position, rotation, battery))
 
     def on_data_error(self, logconf, msg):
         print(f"Error when logging '{logconf.name}': '{msg}'")
@@ -132,22 +132,31 @@ class Telemetry(Thread):
                 self.crazyflie.supervisor.send_arming_request(False)
                 self.crazyflie.close_link()
 
-    def tkof(self) -> bool:
+    def tkof(self, dt: float) -> bool:
         
-        airborn = np.abs(self.last_measurement.get().position.z - Telemetry.TKOF_HEIGHT) < Telemetry.TOLERANCE
-        self.last_command = Command(altitude=Telemetry.TKOF_HEIGHT)
-        match self.link.get():
-            case Link.WIFI | Link.RADIO:
-                if not airborn:
-                    self.crazyflie.commander.send_zdistance_setpoint(0.0, 0.0, 0.0, Telemetry.TKOF_HEIGHT)
+        dz = Telemetry.TKOF_HEIGHT - self.measurement.get().position.z
+        airborn = np.abs(dz) < Telemetry.TOLERANCE
+        self.command = Command(glm.vec3(0.0, 0.0, np.clip(dz, -1.0, 1.0)))
+        if not airborn:
+            match self.link.get():
+                case Link.SIMULATION:
+                        self.measurement.set(self.measurement.get().simulate(self.command, dt))
+                case Link.WIFI | Link.RADIO:
+                        self.crazyflie.commander.send_zdistance_setpoint(0.0, 0.0, 0.0, Telemetry.TKOF_HEIGHT)
         
         return airborn
 
-    def land(self) -> bool:
+    def land(self, dt: float) -> bool:
 
-        landed = np.abs(self.last_measurement.get().position.z - Telemetry.LAND_HEIGHT) < Telemetry.TOLERANCE
-        self.last_command = Command(altitude=Telemetry.LAND_HEIGHT)
+        dz = Telemetry.LAND_HEIGHT - self.measurement.get().position.z
+        landed = np.abs(dz) < Telemetry.TOLERANCE
+        self.command = Command(glm.vec3(0.0, 0.0, np.clip(dz, -1.0, 1.0)))
         match self.link.get():
+            case Link.SIMULATION:
+                if not landed:
+                    self.measurement.set(self.measurement.get().simulate(self.command, dt))
+                else:
+                    self.measurement.set(Measurement())
             case Link.WIFI | Link.RADIO:
                 if not landed:
                     self.crazyflie.commander.send_zdistance_setpoint(0.0, 0.0, 0.0, Telemetry.LAND_HEIGHT)
@@ -155,6 +164,34 @@ class Telemetry(Thread):
                     self.crazyflie.commander.send_stop_setpoint()
 
         return landed
+    
+    def send_command(self, command: Command, dt: float) -> None:
+        self.command = command
+        if self.connected.get():
+            match self.link.get():
+                case Link.SIMULATION:
+                    self.measurement.set(self.measurement.get().simulate(self.command, dt))
+                case Link.WIFI | Link.RADIO:
+                    self.crazyflie.commander.send_hover_setpoint(
+                        command.velocity.x,
+                        command.velocity.y,
+                        np.rad2deg(command.yaw_rate),
+                        self.z + self.command.velocity.z * dt
+                    )
+        
+    def send_setpoint(self, setpoint: Setpoint, dt: float) -> None:
+        self.command = setpoint.to_command(self.measurement.get())
+        if self.connected.get():
+            match self.link.get():
+                case Link.SIMULATION:
+                    self.measurement.set(self.measurement.get().simulate(self.command, dt))
+                case Link.WIFI | Link.RADIO:
+                    self.crazyflie.commander.send_position_setpoint(
+                        setpoint.position.x,
+                        setpoint.position.y,
+                        setpoint.position.z,
+                        np.rad2deg(setpoint.yaw)
+                    )
 
     @override
     def run(self) -> None:
@@ -175,58 +212,6 @@ class Telemetry(Thread):
                 img = np.frombuffer(buf, dtype=np.uint8)
                 bayer = img.reshape(shape=(Telemetry.CAMERA_HEIGHT, Telemetry.CAMERA_WIDTH))
                 color = cv2.cvtColor(bayer, cv2.COLOR_BayerBG2RGB)
-                self.last_frame.set(color)
+                self.frame.set(color)
             else:
                 print("Invalid frame")
-
-    def get_last_measurement(self) -> Measurement:
-        return self.last_measurement.get()
-        
-    def get_last_frame(self) -> MatLike:
-        return self.last_frame.get()
-    
-    def get_last_command(self) -> Command:
-        return self.last_command
-    
-    def send_command(self, command: Command) -> None:
-        self.last_command = deepcopy(command)
-        match self.link.get():
-            case Link.WIFI | Link.RADIO:
-                self.crazyflie.commander.send_hover_setpoint(
-                    command.velocity.x,
-                    command.velocity.y,
-                    np.rad2deg(command.yaw_rate),
-                    command.altitude
-                )
-        
-    def send_setpoint(self, setpoint: Setpoint) -> None:
-        self.last_command = setpoint.equivalent_command(self.last_measurement.get())
-        match self.link.get():
-            case Link.WIFI | Link.RADIO:
-                self.crazyflie.commander.send_position_setpoint(
-                    setpoint.position.x,
-                    setpoint.position.y,
-                    setpoint.position.z,
-                    np.rad2deg(setpoint.yaw)
-                )
-
-    def simulate(self, dt: float) -> None:
-
-        if self.connected.get() and self.link.get() is Link.SIMULATION:
-
-            m = self.last_measurement.get()
-            v = self.last_command.velocity
-
-            dz = self.last_command.altitude - m.position.z
-            dxyz = glm.rotateZ(glm.vec3(v.x, v.y, dz), m.rotation.z)
-
-            self.last_measurement.set(Measurement(
-                m.timestamp + dt,
-                m.position + dxyz * dt,
-                glm.vec3(
-                    -v.x * (np.pi / 4.0),
-                    -v.y * (np.pi / 4.0),
-                    wrap(m.rotation.z + self.last_command.yaw_rate * dt)
-                ),
-                np.clip(m.battery - 0.01 * glm.length(dxyz) * dt, 0.0, 1.0)
-            ))
