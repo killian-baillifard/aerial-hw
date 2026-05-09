@@ -8,22 +8,26 @@ class Shutter(Widget):
 
     COLOR = (6, 206, 0, 255)
 
-    def __init__(self, center: glm.uvec2, offset: glm.uvec2, duration: int = 20, z_index: int = 0):
+    def __init__(self, center: glm.uvec2, offset: glm.uvec2, period: float = 1.0, z_index: int = 0):
         super().__init__(z_index)
         self.center = center
         self.offset = offset
-        self.duration = duration
-        self.cooldown = 0
+        self.period = period
+        self.counter = 0.0
 
     def __del__(self) -> None:
         super().__del__()
 
     @override
+    def update(self, dt: float) -> None:
+        if self.counter > 0.0:
+            self.counter = np.clip(self.counter - dt, 0.0, self.period)
+
+    @override
     def draw(self, surface: Surface) -> None:
 
-        # Show only for cooldown duration
-        self.cooldown -= 1
-        if self.cooldown > 0:
+        # Show only for half a period
+        if self.counter > self.period / 2.0:
 
             # Top left chevron
             tl_center = glm.ivec2(self.center) + glm.ivec2(-self.offset.x, -self.offset.y)
@@ -54,4 +58,5 @@ class Shutter(Widget):
             draw.line(surface, Shutter.COLOR, br_center, br_horizontal, 3)
 
     def trigger(self):
-        self.cooldown = self.duration
+        if self.counter == 0.0:
+            self.counter = self.period

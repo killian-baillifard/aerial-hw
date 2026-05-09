@@ -19,8 +19,9 @@ class Layout:
     LABEL_WIDTH = 200
     TOP_BAR = 30
     BOTTOM_BAR = 30
-    WINDOW_SIZE = glm.uvec2(WINDOW_WIDTH, WINDOW_HEIGHT + TOP_BAR + BOTTOM_BAR + 3 * MARGIN)
-    IMAGE_CENTER = (WINDOW_SIZE / 2) + glm.uvec2(0.0, TOP_BAR + 2 * MARGIN)
+    IMAGE_SIZE = glm.uvec2(WINDOW_WIDTH, WINDOW_HEIGHT)
+    WINDOW_SIZE = IMAGE_SIZE + glm.uvec2(0.0, TOP_BAR + BOTTOM_BAR + 3 * MARGIN)
+    IMAGE_CENTER = (IMAGE_SIZE / 2) + glm.uvec2(0.0, TOP_BAR + 2 * MARGIN)
 
     def __init__(self) -> None:
 
@@ -30,13 +31,13 @@ class Layout:
         x += Layout.SMALL_BTN_WIDTH + Layout.MARGIN
         self.ctrl_btn = Button(glm.uvec2(x, Layout.MARGIN), "CTRL [MAN]", Layout.SMALL_BTN_WIDTH)
         x += Layout.SMALL_BTN_WIDTH + Layout.MARGIN
-        self.src_lap_btn = Button(glm.uvec2(x, Layout.MARGIN), "SRC [KEYBOARD]", Layout.FULL_BTN_WIDTH)
+        self.src_lap_btn = Button(glm.uvec2(x, Layout.MARGIN), "KEYBOARD", Layout.FULL_BTN_WIDTH)
         x += Layout.FULL_BTN_WIDTH + Layout.MARGIN
-        self.con_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "CON [OFF]", Layout.SMALL_BTN_WIDTH, disabled=True)
+        self.con_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "CON [OFF]", Layout.SMALL_BTN_WIDTH)
         x += Layout.SMALL_BTN_WIDTH + Layout.MARGIN
         self.vws_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "VWS [ON]", Layout.SMALL_BTN_WIDTH, latched=True)
         x += Layout.SMALL_BTN_WIDTH + Layout.MARGIN
-        self.eng_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "ENG [OFF]", Layout.SMALL_BTN_WIDTH)
+        self.tkof_land_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "LANDED", Layout.SMALL_BTN_WIDTH, disabled=True)
         x += Layout.SMALL_BTN_WIDTH + Layout.MARGIN
         self.rec_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "REC [OFF]", Layout.SMALL_BTN_WIDTH)
 

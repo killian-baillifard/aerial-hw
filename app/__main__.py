@@ -1,93 +1,108 @@
 import time
-from app import input_to_setpoint, setpoint_to_input
+from app import *
 from app.gui import Gui
-from app.inputs.setpoint import Setpoint
-from app.telemetry import Telemetry
-from app.planner import Planner
-from app.planner.example import ExamplePlanner
-from app.inputs import Input
 from app.inputs.controller import Controller
 from app.inputs.keyboard import Keyboard
+from app.telemetry import Telemetry
+from app.planner.example import ExamplePlanner
 from app.log import Logger
-from app.telemetry.simulator import Simulator
 
-MAX_FRAMERATE = 60.0 # FPS
-MIN_PERIOD = 1.0 / MAX_FRAMERATE
+class App:
 
-def main():
+    MAX_FRAMERATE = 60.0 # FPS
+    MIN_PERIOD = 1.0 / MAX_FRAMERATE
 
-    # Initialize application modules
-    gui: Gui = Gui()
-    controller: Input = Controller()
-    keyboard: Input = Keyboard()
-    planner: Planner = ExamplePlanner()
-    telemetry: Telemetry = Telemetry()
-    logger: Logger = Logger()
-    simulator: Simulator = Simulator()
+    def __init__(self) -> None:
 
-    # Initialize application state
-    old_t = time.perf_counter()
-    quit: bool = False
+        # Initialize application modules
+        self.gui            = Gui()
+        self.controller     = Controller()
+        self.keyboard       = Keyboard()
+        self.telemetry      = Telemetry()
+        self.logger         = Logger()
+        self.scan_planner   = ExamplePlanner()
+        self.race_planner   = ExamplePlanner()
+        self.flight_status  = FlightStatus.LANDED
 
-    # Application loop
-    while not quit:
+        # Initialize event handlers
+        self.gui.connect_event          += self.telemetry.connect
+        self.gui.disconnect_event       += self.telemetry.disconnect
+        self.gui.tkof_event             += self.tkof_event_handler
+        self.gui.land_event             += self.land_event_handler
+        self.gui.start_recording_event  += self.start_recording_event_handler
+        self.gui.stop_recording_event   += self.stop_recording_event_handler
+        self.telemetry.connected_event  += self.gui.connected
+        self.telemetry.disconnected_event += self.gui.disconnected
 
-        # Compute dt
-        new_t = time.perf_counter()
-        dt = new_t - old_t
-        if dt < MIN_PERIOD:
-            time.sleep(MIN_PERIOD - dt)
+    def tkof_event_handler(self) -> None:
+        self.flight_status = FlightStatus.TKOF
+
+    def land_event_handler(self) -> None:
+        self.flight_status = FlightStatus.LAND
+
+    def start_recording_event_handler(self) -> None:
+        pass
+
+    def stop_recording_event_handler(self) -> None:
+        pass
+
+    def run(self) -> None:
+        quit: bool      = False
+        old_t: float    = time.perf_counter()
+        while not quit:
+
+            # Compute dt
             new_t = time.perf_counter()
             dt = new_t - old_t
-        old_t = new_t
+            if dt < App.MIN_PERIOD:
+                time.sleep(App.MIN_PERIOD - dt)
+                new_t = time.perf_counter()
+                dt = new_t - old_t
+            old_t = new_t
 
-        # Get simulated / real telemetry and camera feedback
-        if gui.link == Gui.Link.SIMULATION:
-            measurement = simulator.get_last_measurement()
-            frame = simulator.get_last_frame()
-        else:
-            measurement = telemetry.get_last_measurement()
-            frame = telemetry.get_last_frame()
+            # Read telemetry
+            measurement = self.telemetry.get_last_measurement()
+            frame = self.telemetry.get_last_frame()
 
-        # Read control input / setpoint from selected control source
-        match gui.control_mode:
-            case Gui.ControlMode.MANUAL:
-                match gui.input_source:
-                    case Gui.InputSource.KEYBOARD:
-                        control_input = keyboard
-                    case Gui.InputSource.CONTROLLER:
-                        control_input = controller
-                control_input.update(dt)
-                setpoint = input_to_setpoint(control_input, measurement)
-            case Gui.ControlMode.PLANNER:
-                match gui.lap_type:
-                    case Gui.LapType.SCAN:
-                        setpoint: Setpoint = planner.update(measurement, frame, dt)
-                    case Gui.LapType.RACE:
-                        setpoint: Setpoint = planner.update(measurement, frame, dt)
-                control_input = setpoint_to_input(setpoint, measurement)
+            # Compute command / setpoint
+            match self.flight_status:
 
-        # Render window and gather button events
-        quit = gui.update(measurement, frame, control_input, dt)
+                case FlightStatus.LANDED:
+                    pass
 
-        # Update simulation with new setpoint
-        if gui.link == Gui.Link.SIMULATION and gui.layout.eng_btn.latched:
-            simulator.update(control_input, setpoint, dt)
+                case FlightStatus.TKOF:
+                    if self.telemetry.tkof():
+                        self.flight_status = FlightStatus.AIRBORN
+                        self.gui.airborn()
 
-        # On capture press
-        #if capture:
+                case FlightStatus.AIRBORN:
+                    match self.gui.control_mode:
+                        case ControlMode.MANUAL:
+                            match self.gui.input_source:
+                                case InputSource.KEYBOARD:
+                                    self.telemetry.send_command(self.keyboard)
+                                case InputSource.CONTROLLER:
+                                    self.telemetry.send_command(self.controller)
+                        case ControlMode.PLANNER:
+                            match self.gui.lap_type:
+                                case LapType.SCAN:
+                                    self.telemetry.send_setpoint(self.scan_planner.update(measurement, frame, dt))
+                                case LapType.RACE:
+                                    self.telemetry.send_setpoint(self.race_planner.update(measurement, frame, dt))
+                
+                case FlightStatus.LAND:
+                    if self.telemetry.land():
+                        self.flight_status = FlightStatus.LANDED
+                        self.gui.landed()
 
-            # Display shutter indicator and play sound
-            #gui.shutter_indicator.trigger()
-            #audio.play(Audio.Track.SHUTTER)
-
-            # Save measurement and frame
-            #logger.log(measurement, frame)
-
-        # Update telemetry input command
-        #telemetry.set_setpoint(setpoint)
-    
-    gui.quit()
+            # Update GUI
+            # TODO apply overlay on frame = overlay(frame, measurement)
+            command = self.telemetry.get_last_command()
+            quit = self.gui.update(measurement, frame, command, dt)
+            self.telemetry.simulate(dt)
+        
+        self.gui.quit()
 
 if __name__ == "__main__":
-    main()
+    app = App()
+    app.run()

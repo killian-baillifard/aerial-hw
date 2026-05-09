@@ -2,9 +2,9 @@ import numpy as np
 from pyglm import glm
 from overrides import override
 from pygame import joystick
-from app.inputs import Input
+from app.inputs import Command
 
-class Controller(Input):
+class Controller(Command):
 
     BUTTONS_MAPPING: dict[str, int] = {"A": 0, "B": 1, "X": 2, "Y": 3}
     CROSS_MAPPING: dict[str, int]   = {"UP": 0, "DOWN": 1, "LEFT": 2, "RIGHT": 3}
@@ -26,16 +26,24 @@ class Controller(Input):
                 self.joystick = joystick.Joystick(0)
                 self.joystick.init()
 
-            # Map left stick and triggers to input interface
-            self.position.x = -self.joystick.get_axis(Controller.AXIS_MAPPING["LSY"])
-            self.position.y = -self.joystick.get_axis(Controller.AXIS_MAPPING["LSX"])
-            self.position.z = (self.joystick.get_axis(Controller.AXIS_MAPPING["TRIGY"]) - self.joystick.get_axis(Controller.AXIS_MAPPING["TRIGX"])) / 2.0
-            self.yaw = -self.joystick.get_axis(Controller.AXIS_MAPPING["RSX"])
+            # Read axes
+            velocity = glm.vec2(
+                -self.joystick.get_axis(Controller.AXIS_MAPPING["LSY"]),
+                -self.joystick.get_axis(Controller.AXIS_MAPPING["LSX"])
+            )
+            yaw_rate = -self.joystick.get_axis(Controller.AXIS_MAPPING["RSX"])
+            climb_rate = self.joystick.get_axis(Controller.AXIS_MAPPING["TRIGY"])
+            climb_rate -= self.joystick.get_axis(Controller.AXIS_MAPPING["TRIGX"])
+            climb_rate /= 2.0
 
-            # Apply deadzone to all axes
-            self.position.xy = self.position.xy if glm.length(self.position.xy) > Controller.DEADZONE else glm.vec2(0.0, 0.0)
-            self.position.z = self.position.z if np.abs(self.position.z) > Controller.DEADZONE else 0
-            self.yaw = self.yaw if np.abs(self.yaw) > Controller.DEADZONE else 0
+            # Apply deadzone to sticks
+            velocity = velocity if glm.length(velocity) > Controller.DEADZONE else glm.vec2(0.0, 0.0)
+            yaw_rate = yaw_rate if np.abs(yaw_rate) > Controller.DEADZONE else 0
+
+            # Assign sticks inputs and integrate triggers inputs
+            self.velocity = velocity
+            self.yaw_rate = yaw_rate
+            self.update_altitude(climb_rate, dt)
 
         elif self.joystick is not None:
             self.joystick = None

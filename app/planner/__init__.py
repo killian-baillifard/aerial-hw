@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from cv2.typing import MatLike
 from app.telemetry.measurement import Measurement
-from app.inputs.setpoint import Setpoint
+from app.inputs import Setpoint
 
 class Planner(ABC):
 

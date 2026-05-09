@@ -1,42 +1,20 @@
 import os, pygame
 import numpy as np
-from enum import Enum
 from cv2.typing import MatLike
 from pyglm import glm
+from app import Link, LapType, ControlMode, InputSource
+from app.generics import Event
 from app.gui.widgets import Widget
 from app.gui.layout import Layout
 from app.gui.audio import Audio
 from app.gui.voicewarningsystem import VoiceWarningSystem
 from app.telemetry.measurement import Measurement
-from app.inputs import Input
+from app.inputs import Command
 
 class Gui:
 
     CLEAR_COLOR = (30, 30, 30)
     JOYSTICKS_LEN = 200
-
-    class Link(Enum):
-        SIMULATION  = 0
-        WIFI        = 1
-        RADIO       = 2
-
-    class ControlMode(Enum):
-        MANUAL  = 0
-        PLANNER = 1
-
-    class InputSource(Enum):
-        KEYBOARD    = 0
-        CONTROLLER  = 1
-
-    class LapType(Enum):
-        SCAN    = 0
-        RACE    = 1
-
-    class ConnectionStatus(Enum):
-        DISCONNECTED    = 0
-        CONNECTING      = 1
-        CONNECTED       = 2
-        DISCONNECTING   = 3
 
     def __init__(self) -> None:
 
@@ -53,23 +31,30 @@ class Gui:
         self.audio = Audio()
         self.voice_warning_system = VoiceWarningSystem(self.audio)
 
+        # Initialize events
+        self.connect_event: Event[Link] = Event[Link]()
+        self.disconnect_event: Event = Event()
+        self.tkof_event: Event = Event()
+        self.land_event: Event = Event()
+        self.start_recording_event: Event = Event()
+        self.stop_recording_event: Event = Event()
+
         # Register event listeners
-        self.layout.link_btn.add_release_handler(self.link_btn_click_handler)
-        self.layout.ctrl_btn.add_release_handler(self.ctrl_btn_click_handler)
-        self.layout.src_lap_btn.add_release_handler(self.src_lap_btn_click_handler)
-        self.layout.con_btn.add_release_handler(self.con_btn_click_handler)
-        self.layout.vws_btn.add_release_handler(self.vws_btn_click_handler)
-        self.layout.eng_btn.add_release_handler(self.eng_btn_click_handler)
-        self.layout.rec_btn.add_release_handler(self.rec_btn_click_handler)
+        self.layout.link_btn.release_event      += self.link_btn_click_handler
+        self.layout.ctrl_btn.release_event      += self.ctrl_btn_click_handler
+        self.layout.src_lap_btn.release_event   += self.src_lap_btn_click_handler
+        self.layout.con_btn.release_event       += self.con_btn_click_handler
+        self.layout.vws_btn.release_event       += self.vws_btn_click_handler
+        self.layout.tkof_land_btn.release_event += self.tkof_land_btn_click_handler
+        self.layout.rec_btn.release_event       += self.rec_btn_click_handler
 
         # Initialize state
-        self.link = Gui.Link.SIMULATION
-        self.control_mode = Gui.ControlMode.MANUAL
-        self.input_source = Gui.InputSource.KEYBOARD
-        self.lap_type = Gui.LapType.SCAN
-        self.connection_status = Gui.ConnectionStatus.DISCONNECTED
+        self.link = Link.SIMULATION
+        self.control_mode = ControlMode.MANUAL
+        self.input_source = InputSource.KEYBOARD
+        self.lap_type = LapType.SCAN
 
-    def update(self, measurement: Measurement, frame: MatLike, input: Input, dt: float) -> bool:
+    def update(self, measurement: Measurement, frame: MatLike, command: Command, dt: float) -> bool:
 
         # Update sensors measurement indicators
         self.layout.x_indicator.set_text(f"[X = {measurement.position.x:.3f} m]")
@@ -87,12 +72,17 @@ class Gui:
         self.layout.camera_image.set_color_image(surface)
 
         # Update input indicators
-        self.layout.xy_joystick.set_delta(glm.ivec2(-input.position.y * Gui.JOYSTICKS_LEN, -input.position.x * Gui.JOYSTICKS_LEN))
-        self.layout.z_joystick.set_delta(glm.ivec2(0, -input.position.z * Gui.JOYSTICKS_LEN))
-        self.layout.yaw_joystick.set_delta(glm.ivec2(-input.yaw * Gui.JOYSTICKS_LEN, 0))
+        dz = np.clip(command.altitude - measurement.position.z, -1.0, 1.0)
+        self.layout.xy_joystick.set_delta(glm.ivec2(-command.velocity.y * Gui.JOYSTICKS_LEN, -command.velocity.x * Gui.JOYSTICKS_LEN))
+        self.layout.z_joystick.set_delta(glm.ivec2(0, -dz * Gui.JOYSTICKS_LEN))
+        self.layout.yaw_joystick.set_delta(glm.ivec2(-command.yaw_rate * Gui.JOYSTICKS_LEN, 0))
+
+        # Update capture indicator
+        if self.layout.rec_btn.latched:
+            self.layout.shutter_indicator.trigger()
 
         # Update widgets and submodules logic
-        Widget.update_instances()
+        Widget.update_instances(dt)
         self.voice_warning_system.update(measurement, dt)
 
         # Draw frame
@@ -110,74 +100,84 @@ class Gui:
     def link_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
         match self.link:
-            case Gui.Link.SIMULATION:   self.link = Gui.Link.WIFI
-            case Gui.Link.WIFI:         self.link = Gui.Link.RADIO
-            case Gui.Link.RADIO:        self.link = Gui.Link.SIMULATION
+            case Link.SIMULATION:
+                self.link = Link.WIFI
+            case Link.WIFI:
+                self.link = Link.RADIO
+            case Link.RADIO:
+                self.link = Link.SIMULATION
         match self.link:
-            case Gui.Link.SIMULATION:
+            case Link.SIMULATION:
                 self.layout.link_btn.set_text("LINK [SIM]")
-                self.layout.con_btn.disable()
-                self.layout.eng_btn.enable()
-            case Gui.Link.WIFI:
+            case Link.WIFI:
                 self.layout.link_btn.set_text("LINK [WIFI]")
-                self.layout.con_btn.enable()
-                self.layout.eng_btn.disable()
-            case Gui.Link.RADIO:
+            case Link.RADIO:
                 self.layout.link_btn.set_text("LINK [RADIO]")
-                self.layout.con_btn.enable()
-                self.layout.eng_btn.disable()
 
-    def update_ctrl_src_lap_buttons(self) -> None:
+    def update_control_variant(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
         match self.control_mode:
-            case Gui.ControlMode.MANUAL:
+            case ControlMode.MANUAL:
                 self.layout.ctrl_btn.set_text("CTRL [MAN]")
                 match self.input_source:
-                    case Gui.InputSource.KEYBOARD:
-                        self.layout.src_lap_btn.set_text("SRC [KEYBOARD]")
-                    case Gui.InputSource.CONTROLLER:
-                        self.layout.src_lap_btn.set_text("SRC [CONTROLLER]")
-            case Gui.ControlMode.PLANNER:
+                    case InputSource.KEYBOARD:
+                        self.layout.src_lap_btn.set_text("KEYBOARD")
+                    case InputSource.CONTROLLER:
+                        self.layout.src_lap_btn.set_text("CONTROLLER")
+            case ControlMode.PLANNER:
                 self.layout.ctrl_btn.set_text("CTRL [PLAN]")
                 match self.lap_type:
-                    case Gui.LapType.SCAN:
-                        self.layout.src_lap_btn.set_text("LAP [SCAN]")
-                    case Gui.LapType.RACE:
-                        self.layout.src_lap_btn.set_text("LAP [RACE]")
+                    case LapType.SCAN:
+                        self.layout.src_lap_btn.set_text("SCAN STAGE")
+                    case LapType.RACE:
+                        self.layout.src_lap_btn.set_text("RACE STAGE")
 
     def ctrl_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
         match self.control_mode:
-            case Gui.ControlMode.MANUAL:    self.control_mode = Gui.ControlMode.PLANNER
-            case Gui.ControlMode.PLANNER:   self.control_mode = Gui.ControlMode.MANUAL
-        self.update_ctrl_src_lap_buttons()
+            case ControlMode.MANUAL:
+                self.control_mode = ControlMode.PLANNER
+            case ControlMode.PLANNER:
+                self.control_mode = ControlMode.MANUAL
+        self.update_control_variant()
 
     def src_lap_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
         match self.control_mode:
-            case Gui.ControlMode.MANUAL:
+            case ControlMode.MANUAL:
                 match self.input_source:
-                    case Gui.InputSource.KEYBOARD:      self.input_source = Gui.InputSource.CONTROLLER
-                    case Gui.InputSource.CONTROLLER:    self.input_source = Gui.InputSource.KEYBOARD
-            case Gui.ControlMode.PLANNER:
+                    case InputSource.KEYBOARD:
+                        self.input_source = InputSource.CONTROLLER
+                    case InputSource.CONTROLLER:
+                        self.input_source = InputSource.KEYBOARD
+            case ControlMode.PLANNER:
                 match self.lap_type:
-                    case Gui.LapType.SCAN:  self.lap_type = Gui.LapType.RACE
-                    case Gui.LapType.RACE:  self.lap_type = Gui.LapType.SCAN
-        self.update_ctrl_src_lap_buttons()
+                    case LapType.SCAN:
+                        self.lap_type = LapType.RACE
+                    case LapType.RACE:
+                        self.lap_type = LapType.SCAN
+        self.update_control_variant()
 
     def con_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
-        match self.connection_status:
-            case Gui.ConnectionStatus.DISCONNECTED:
-                self.connection_status = Gui.ConnectionStatus.CONNECTING
-                self.layout.con_btn.set_text("CON [...]")
-                self.layout.con_btn.disable()
-                print("TODO : Call connect handler")
-            case Gui.ConnectionStatus.CONNECTED:
-                self.connection_status = Gui.ConnectionStatus.DISCONNECTING
-                self.layout.con_btn.set_text("CON [...]")
-                self.layout.con_btn.disable()
-                print("TODO : Call disconnect handler")
+        self.layout.con_btn.set_text("CON [...]")
+        self.layout.con_btn.disable()
+        if self.layout.con_btn.latched:
+            self.layout.link_btn.disable()
+            self.connect_event(self.link)
+        else:
+            self.layout.tkof_land_btn.disable()
+            self.disconnect_event()
+
+    def connected(self) -> None:
+        self.layout.con_btn.set_text("CON [ON]")
+        self.layout.con_btn.enable()
+        self.layout.tkof_land_btn.enable()
+
+    def disconnected(self) -> None:
+        self.layout.con_btn.set_text("CON [OFF]")
+        self.layout.con_btn.enable()
+        self.layout.link_btn.enable()
 
     def vws_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
@@ -188,16 +188,25 @@ class Gui:
             self.layout.vws_btn.set_text("VWS [OFF]")
             self.voice_warning_system.disable()
 
-    def eng_btn_click_handler(self) -> None:
+    def tkof_land_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
-        if self.layout.eng_btn.latched:
-            self.layout.eng_btn.set_text("ENG [ON]")
-            self.layout.link_btn.disable()
-            print("TODO : Ignition")
+        self.layout.tkof_land_btn.disable()
+        if self.layout.tkof_land_btn.latched:
+            self.layout.tkof_land_btn.set_text("TKOF")
+            self.layout.con_btn.disable()
+            self.tkof_event()
         else:
-            self.layout.eng_btn.set_text("ENG [OFF]")
-            self.layout.link_btn.enable()
-            print("TODO : Cutoff")
+            self.layout.tkof_land_btn.set_text("LAND")
+            self.land_event()
+
+    def airborn(self) -> None:
+        self.layout.tkof_land_btn.set_text("AIRBORN")
+        self.layout.tkof_land_btn.enable()
+
+    def landed(self) -> None:
+        self.layout.tkof_land_btn.set_text("LANDED")
+        self.layout.tkof_land_btn.enable()
+        self.layout.con_btn.enable()
 
     def rec_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.SHUTTER)

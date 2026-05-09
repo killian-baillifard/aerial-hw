@@ -4,7 +4,7 @@ from app.gui.widgets import Color
 from overrides import override
 from enum import Enum
 from pyglm import glm
-from typing import Callable
+from app.generics import Event
 from app.gui.widgets import Widget
 from app.gui.widgets.label import Label
 
@@ -36,8 +36,8 @@ class Button(Widget):
         self.rect = Rect(pos.x, pos.y, width, height)
         self.label = Label(pos, text, color=Button.BORDER_IDLE_COLOR, z_index=z_index + 1)
         self.state = Button.State.DISABLED if disabled else Button.State.IDLE
-        self.on_press_handler: list[Callable[[], None]] = []
-        self.on_release_handler: list[Callable[[], None]] = []
+        self.press_event: Event = Event()
+        self.release_event: Event = Event()
         self.enabled = not disabled
 
         # Center label on button
@@ -80,12 +80,6 @@ class Button(Widget):
         self.border_pressed_color = pressed
         self.label.set_color(idle)
 
-    def add_press_handler(self, handler: Callable[[], None]) -> None:
-        self.on_press_handler.append(handler)
-
-    def add_release_handler(self, handler: Callable[[], None]) -> None:
-        self.on_release_handler.append(handler)
-
     def set_text(self, text: str) -> None:
         self.label.set_text(text)
         label_rect = self.label.get_rect()
@@ -96,7 +90,7 @@ class Button(Widget):
         self.label.set_position(centered_pos)
 
     @override
-    def update(self) -> None:
+    def update(self, dt: float) -> None:
 
         # Compute collision with mouse
         x, y = mouse.get_pos()
@@ -112,13 +106,11 @@ class Button(Widget):
             self.state = Button.State.IDLE
         elif hovered and left and self.state is Button.State.HOVERED:
             self.state = Button.State.PRESSED
-            for handler in self.on_press_handler:
-                handler()
+            self.press_event()
         elif hovered and not left:
             if self.state is Button.State.PRESSED:
                 self.state = Button.State.HOVERED
-                for handler in self.on_release_handler:
-                    handler()
+                self.release_event()
             if self.state is Button.State.IDLE:
                 self.state = Button.State.HOVERED
         elif not hovered and self.state is not Button.State.IDLE:

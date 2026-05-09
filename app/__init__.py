@@ -1,20 +1,34 @@
 import numpy as np
-from pyglm import glm
-from app.inputs import Input
-from app.inputs.setpoint import Setpoint
-from app.telemetry.measurement import Measurement
+from enum import Enum
+
+class Link(Enum):
+    SIMULATION  = 0
+    WIFI        = 1
+    RADIO       = 2
+
+class ControlMode(Enum):
+    MANUAL  = 0
+    PLANNER = 1
+
+class InputSource(Enum):
+    KEYBOARD    = 0
+    CONTROLLER  = 1
+
+class LapType(Enum):
+    SCAN    = 0
+    RACE    = 1
+
+class ConnectionStatus(Enum):
+    DISCONNECTED    = 0
+    CONNECT         = 1
+    CONNECTED       = 2
+    DISCONNECT      = 3
+
+class FlightStatus(Enum):
+    LANDED  = 0
+    TKOF    = 1
+    AIRBORN = 2
+    LAND    = 3
 
 def wrap(x: float) -> float:
     return ((x + np.pi) % (2 * np.pi)) - np.pi
-
-def input_to_setpoint(input: Input, measurement: Measurement) -> Setpoint:
-    return Setpoint(
-        measurement.position + glm.rotateZ(input.position, measurement.rotation.z),
-        input.yaw + measurement.rotation.z
-    )
-
-def setpoint_to_input(setpoint: Setpoint, measurement: Measurement) -> Input:
-    return Input(
-        glm.rotateZ(setpoint.position - measurement.position, -measurement.rotation.z),
-        setpoint.yaw - measurement.rotation.z
-    )

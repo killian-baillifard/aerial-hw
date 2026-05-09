@@ -1,4 +1,3 @@
-import numpy as np
 from pygame import Surface, draw
 from overrides import override
 from pyglm import glm
