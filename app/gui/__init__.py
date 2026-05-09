@@ -1,5 +1,6 @@
 import os, pygame
 import numpy as np
+from threading import Lock
 from cv2.typing import MatLike
 from pyglm import glm
 from app import Link, PlanStage, ControlMode, CommandSource
@@ -51,6 +52,7 @@ class Gui:
         self.layout.rec_btn.release_event       += self.rec_btn_click_handler
 
         # Initialize state
+        self.lock = Lock()
         self.link = Link.SIMULATION
         self.control_mode = ControlMode.MANUAL
         self.input_source = CommandSource.KEYBOARD
@@ -89,7 +91,9 @@ class Gui:
 
         # Draw frame
         self.screen.fill(Gui.CLEAR_COLOR)
+        self.lock.acquire()
         Widget.draw_instances(self.screen)
+        self.lock.release()
         pygame.display.flip()
 
         # Poll window events
@@ -173,14 +177,20 @@ class Gui:
             self.disconnect_event()
 
     def connected(self) -> None:
+        self.lock.acquire()
         self.layout.con_btn.set_text("CON [ON]")
         self.layout.con_btn.enable()
         self.layout.tkof_land_btn.enable()
+        self.lock.release()
 
     def disconnected(self) -> None:
+        self.lock.acquire()
+        if self.layout.con_btn.latched:
+            self.layout.con_btn.release_handler()
         self.layout.con_btn.set_text("CON [OFF]")
         self.layout.con_btn.enable()
         self.layout.link_btn.enable()
+        self.lock.release()
 
     def vws_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)

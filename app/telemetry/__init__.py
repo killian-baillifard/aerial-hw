@@ -115,9 +115,9 @@ class Telemetry(Thread):
                 self.connected.set(True)
                 self.connected_event()
             case Link.RADIO:
-                self.crazyflie.open_link(Telemetry.RADIO_URI)
+                Thread(target=self.crazyflie.open_link, args=(Telemetry.RADIO_URI, ), daemon=True).start()
             case Link.WIFI:
-                self.crazyflie.open_link(Telemetry.WIFI_URI)
+                Thread(target=self.crazyflie.open_link, args=(Telemetry.WIFI_URI, ), daemon=True).start()
 
     def disconnect(self) -> None:
         match self.link.get():
