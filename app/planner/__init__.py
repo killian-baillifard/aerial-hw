@@ -20,6 +20,10 @@ class Planner(ABC):
             - battery (0% - 100%)
         frame : MatLike
             BGR frame (height, width, color) = (244, 324, 3)
+        flags : TelemetryFlags
+            Indicate if measurement and / or frame argument contains new measurements
+        dt : float
+            Time delta since last call
 
         Returns
         -------

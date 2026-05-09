@@ -93,12 +93,11 @@ class App:
                                     self.controller.update(dt)
                                     self.telemetry.send_command(self.controller, dt)
                         case ControlMode.PLANNER:
-                            if flags != TelemetryFlags.NEITHER:
-                                match self.gui.lap_type:
-                                    case PlanStage.SCAN:
-                                            self.telemetry.send_setpoint(self.scan_planner.update(measurement, frame, flags, dt), dt)
-                                    case PlanStage.RACE:
-                                        self.telemetry.send_setpoint(self.race_planner.update(measurement, frame, flags, dt), dt)
+                            match self.gui.lap_type:
+                                case PlanStage.SCAN:
+                                        self.telemetry.send_setpoint(self.scan_planner.update(measurement, frame, flags, dt), dt)
+                                case PlanStage.RACE:
+                                    self.telemetry.send_setpoint(self.race_planner.update(measurement, frame, flags, dt), dt)
                 
                 case FlightStatus.LAND:
                     if self.telemetry.land(dt):

@@ -42,7 +42,7 @@ class Recorder:
     def record(self, measurement: Measurement, frame: MatLike):
         if self.recording:
             self.csv_writer.writerow(measurement.to_array())
-            self.avi_writer.write(frame)
+            self.avi_writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
 
     def stop_recording(self) -> None:
         self.recording = False

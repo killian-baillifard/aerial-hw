@@ -55,7 +55,7 @@ class Gui:
         self.lock = Lock()
         self.link = Link.SIMULATION
         self.control_mode = ControlMode.MANUAL
-        self.input_source = CommandSource.KEYBOARD
+        self.input_source = CommandSource.CONTROLLER
         self.lap_type = PlanStage.SCAN
 
     def update_command_indicators(self, command: Command) -> None:

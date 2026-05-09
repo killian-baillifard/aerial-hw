@@ -72,4 +72,4 @@ class Scene(Widget):
         for line in self.lines_to_draw:
             begin = glm.uvec2(line.begin.x, line.begin.y)
             end = glm.uvec2(line.end.x, line.end.y)
-            cv2.line(frame, begin, end, Scene.COLOR[:2], 1)
+            cv2.line(frame, begin, end, (255, 0, 0), 1)
