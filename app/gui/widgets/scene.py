@@ -1,4 +1,6 @@
 import numpy as np
+import cv2
+from cv2.typing import MatLike
 from pyglm import glm
 from pygame import Surface, draw
 from overrides import override
@@ -65,3 +67,9 @@ class Scene(Widget):
             offset_begin = self.offset + glm.uvec2(int(scaled_begin.x), int(scaled_begin.y))
             offset_end = self.offset + glm.uvec2(int(scaled_end.x), int(scaled_end.y))
             draw.line(surface, Scene.COLOR, offset_begin, offset_end, 3)
+
+    def overlay(self, frame: MatLike) -> None:
+        for line in self.lines_to_draw:
+            begin = glm.uvec2(line.begin.x, line.begin.y)
+            end = glm.uvec2(line.end.x, line.end.y)
+            cv2.line(frame, begin, end, Scene.COLOR[:2], 1)

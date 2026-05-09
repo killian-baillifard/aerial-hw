@@ -1,3 +1,4 @@
+from copy import deepcopy
 from app.gui.audio import Audio
 from app.io import Measurement
 
@@ -31,7 +32,10 @@ class VoiceWarningSystem:
             self.audio.play(track)
             self.cooldowns[track] = VoiceWarningSystem.COOLDOWNS[track]
 
-    def update(self, measurement: Measurement, dt: float) -> None:
+    def update_measurement(self, measurement: Measurement) -> None:
+        self.last_measurement = deepcopy(measurement)
+
+    def update_counter(self, dt: float) -> None:
 
         # Decrement cooldowns
         for key, value in self.cooldowns.items():
@@ -43,9 +47,10 @@ class VoiceWarningSystem:
             return
 
         # Test battery warning condition
-        if measurement.battery < VoiceWarningSystem.MIN_BATTERY:
+        if self.last_measurement.battery < VoiceWarningSystem.MIN_BATTERY:
             self.rate_limited_play(Audio.Track.FUEL_LOW)
 
         # Test altitude warning condition
-        if measurement.position.z > VoiceWarningSystem.MAX_ALTITUDE:
+        if self.last_measurement.position.z > VoiceWarningSystem.MAX_ALTITUDE:
             self.rate_limited_play(Audio.Track.ALTITUDE)
+

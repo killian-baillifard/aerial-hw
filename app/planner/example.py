@@ -4,6 +4,7 @@ from cv2.typing import MatLike
 from app.io import Measurement
 from app.io import Setpoint
 from app.planner import Planner
+from app.telemetry import TelemetryFlags
 
 class ExamplePlanner(Planner):
 
@@ -21,7 +22,7 @@ class ExamplePlanner(Planner):
         self.i = 0
 
     @override
-    def update(self, measurement: Measurement, frame: MatLike, dt: float) -> Setpoint:
+    def update(self, measurement: Measurement, frame: MatLike, flags: TelemetryFlags, dt: float) -> Setpoint:
 
         if self.i < len(self.waypoints):
             setpoint = Setpoint(self.waypoints[self.i], 0.0)

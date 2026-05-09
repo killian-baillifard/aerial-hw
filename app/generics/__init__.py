@@ -22,6 +22,33 @@ class Atomic(Generic[T]):
         self.value = value
         self.lock.release()
 
+class Mailbox(Generic[T]):
+
+    def __init__(self, value: T) -> None:
+        self.lock: Lock = Lock()
+        self.value: T = value
+        self.updated = True
+        
+    def get(self) -> tuple[T, bool]:
+        self.lock.acquire()
+        value = self.value
+        updated = self.updated
+        self.updated = False
+        self.lock.release()
+        return value, updated
+    
+    def read(self) -> T:
+        self.lock.acquire()
+        value = self.value
+        self.lock.release()
+        return value
+    
+    def set(self, value: T) -> None:
+        self.lock.acquire()
+        self.value = value
+        self.updated = True
+        self.lock.release()
+
 class Event(Generic[*Ts]):
     
     def __init__(self) -> None:

@@ -1,6 +1,7 @@
 import os, logging, struct, time
 import numpy as np
 import cv2
+from typing import Callable
 from cv2.typing import MatLike
 from threading import Thread
 from overrides import override
@@ -11,10 +12,17 @@ from cflib.utils import uri_helper
 from cflib.crazyflie import Crazyflie
 from cflib.crazyflie.log import LogConfig
 from app import Link
-from app.generics import Atomic, Event
+from app.generics import Atomic, Mailbox, Event
 from app.io import Command, Setpoint
 from app.io import Measurement
 from app.telemetry.camera import WIDTH, HEIGHT
+from enum import Flag
+
+class TelemetryFlags(Flag):
+    NEITHER         = 0
+    NEW_MEASUREMENT = 1
+    NEW_FRAME       = 2
+    BOTH            = NEW_MEASUREMENT | NEW_FRAME
 
 class Telemetry(Thread):
 
@@ -25,7 +33,7 @@ class Telemetry(Thread):
     LAND_HEIGHT     = 0.1   # m
     TOLERANCE       = 0.05  # m
 
-    def __init__(self) -> None:
+    def __init__(self, sim_overlay_func: Callable[[MatLike], None]) -> None:
         super().__init__(name='Telemetry', daemon=True)
         logging.basicConfig(level=logging.ERROR)
         cflib.crtp.init_drivers()
@@ -53,10 +61,11 @@ class Telemetry(Thread):
         self.crazyflie.disconnected.add_callback(self.on_disconnected)
 
         # Telemetry state
+        self.sim_overlay_func = sim_overlay_func
         self.link: Atomic[Link | None] = Atomic(None)
         self.connected: Atomic[bool] = Atomic(False)
-        self.measurement: Atomic[Measurement] = Atomic(Measurement())
-        self.frame: Atomic[MatLike] = Atomic(np.zeros(shape=(HEIGHT, WIDTH, 3), dtype=np.uint8))
+        self.measurement: Mailbox[Measurement] = Mailbox(Measurement())
+        self.frame: Mailbox[MatLike] = Mailbox(np.zeros(shape=(HEIGHT, WIDTH, 3), dtype=np.uint8))
         self.command: Command = Command()
         self.z: float = 0.0
 
@@ -128,15 +137,29 @@ class Telemetry(Thread):
                 self.crazyflie.supervisor.send_arming_request(False)
                 self.crazyflie.close_link()
 
+    def simulate_crazyflie(self, dt: float) -> None:
+
+        # Step simulation
+        measurement = self.measurement.read().simulate(self.command, dt)
+        measurement = measurement.simulate(self.command, dt)
+
+        # Overlay simulation on new frame
+        frame = np.zeros(shape=(HEIGHT, WIDTH, 3), dtype=np.uint8)
+        self.sim_overlay_func(frame)
+
+        # Set new frame and measurement
+        self.measurement.set(measurement)
+        self.frame.set(frame)
+
     def tkof(self, dt: float) -> bool:
         
-        dz = Telemetry.TKOF_HEIGHT - self.measurement.get().position.z
+        dz = Telemetry.TKOF_HEIGHT - self.measurement.read().position.z
         airborn = np.abs(dz) < Telemetry.TOLERANCE
         self.command = Command(glm.vec3(0.0, 0.0, np.clip(dz, -1.0, 1.0)))
         if not airborn:
             match self.link.get():
                 case Link.SIMULATION:
-                        self.measurement.set(self.measurement.get().simulate(self.command, dt))
+                        self.simulate_crazyflie(dt)
                 case Link.WIFI | Link.RADIO:
                         self.crazyflie.commander.send_zdistance_setpoint(0.0, 0.0, 0.0, Telemetry.TKOF_HEIGHT)
         
@@ -144,13 +167,13 @@ class Telemetry(Thread):
 
     def land(self, dt: float) -> bool:
 
-        dz = Telemetry.LAND_HEIGHT - self.measurement.get().position.z
+        dz = Telemetry.LAND_HEIGHT - self.measurement.read().position.z
         landed = np.abs(dz) < Telemetry.TOLERANCE
         self.command = Command(glm.vec3(0.0, 0.0, np.clip(dz, -1.0, 1.0)))
         match self.link.get():
             case Link.SIMULATION:
                 if not landed:
-                    self.measurement.set(self.measurement.get().simulate(self.command, dt))
+                    self.simulate_crazyflie(dt)
                 else:
                     self.measurement.set(Measurement())
             case Link.WIFI | Link.RADIO:
@@ -166,7 +189,7 @@ class Telemetry(Thread):
         if self.connected.get():
             match self.link.get():
                 case Link.SIMULATION:
-                    self.measurement.set(self.measurement.get().simulate(self.command, dt))
+                    self.simulate_crazyflie(dt)
                 case Link.WIFI | Link.RADIO:
                     self.crazyflie.commander.send_hover_setpoint(
                         command.velocity.x,
@@ -176,11 +199,11 @@ class Telemetry(Thread):
                     )
         
     def send_setpoint(self, setpoint: Setpoint, dt: float) -> None:
-        self.command = setpoint.to_command(self.measurement.get())
+        self.command = setpoint.to_command(self.measurement.read())
         if self.connected.get():
             match self.link.get():
                 case Link.SIMULATION:
-                    self.measurement.set(self.measurement.get().simulate(self.command, dt))
+                    self.simulate_crazyflie(dt)
                 case Link.WIFI | Link.RADIO:
                     self.crazyflie.commander.send_position_setpoint(
                         setpoint.position.x,

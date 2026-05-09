@@ -58,9 +58,14 @@ class Gui:
         self.input_source = CommandSource.KEYBOARD
         self.lap_type = PlanStage.SCAN
 
-    def update(self, measurement: Measurement, frame: MatLike, command: Command, dt: float) -> bool:
+    def update_command_indicators(self, command: Command) -> None:
+        self.layout.xy_joystick.set_delta(glm.ivec2(-command.velocity.y * Gui.JOYSTICKS_LEN, -command.velocity.x * Gui.JOYSTICKS_LEN))
+        self.layout.z_joystick.set_delta(glm.ivec2(0, -command.velocity.z * Gui.JOYSTICKS_LEN))
+        self.layout.yaw_joystick.set_delta(glm.ivec2(-(command.yaw_rate / Command.YAW_RATE) * Gui.JOYSTICKS_LEN, 0))
+        if self.layout.rec_btn.latched:
+            self.layout.shutter_indicator.trigger()
 
-        # Update measurement indicators
+    def update_measurement_indicators(self, measurement: Measurement) -> None:
         self.layout.x_indicator.set_text(f"[X = {measurement.position.x:.3f} m]")
         self.layout.y_indicator.set_text(f"[Y = {measurement.position.y:.3f} m]")
         self.layout.z_indicator.set_text(f"[Z = {measurement.position.z:.3f} m]")
@@ -69,34 +74,24 @@ class Gui:
         self.layout.pitch_indicator.set_pitch(-measurement.rotation.y * Gui.PICTH_DISPLACEMENT)
         self.layout.batt_indicator.set_text(f"[BATT = {int(100 * measurement.battery):d} %]")
         self.layout.batt_gauge.set_progress(measurement.battery)
+        self.layout.scene.set_view(measurement.position, measurement.rotation)
+        self.voice_warning_system.update_measurement(measurement)
 
-        # Update camera image and scene
+    def update_camera_image(self, frame: MatLike) -> None:
         h, w = frame.shape[:2]
         surface = pygame.image.frombuffer(frame.tobytes(), (w, h), "RGB")
         self.layout.camera_image.set_color_image(surface)
-        self.layout.scene.set_view(measurement.position, measurement.rotation)
 
-        # Update command indicators
-        self.layout.xy_joystick.set_delta(glm.ivec2(-command.velocity.y * Gui.JOYSTICKS_LEN, -command.velocity.x * Gui.JOYSTICKS_LEN))
-        self.layout.z_joystick.set_delta(glm.ivec2(0, -command.velocity.z * Gui.JOYSTICKS_LEN))
-        self.layout.yaw_joystick.set_delta(glm.ivec2(-(command.yaw_rate / Command.YAW_RATE) * Gui.JOYSTICKS_LEN, 0))
-
-        # Update capture indicator
-        if self.layout.rec_btn.latched:
-            self.layout.shutter_indicator.trigger()
-
-        # Update widgets and submodules logic
+    def render(self, dt: float) -> None:
+        self.voice_warning_system.update_counter(dt)
         Widget.update_instances(dt)
-        self.voice_warning_system.update(measurement, dt)
-
-        # Draw frame
         self.screen.fill(Gui.CLEAR_COLOR)
         self.lock.acquire()
         Widget.draw_instances(self.screen)
         self.lock.release()
         pygame.display.flip()
 
-        # Poll window events
+    def poll_events(self) -> bool:
         quit = False
         for event in pygame.event.get():
             if event.type == pygame.QUIT:

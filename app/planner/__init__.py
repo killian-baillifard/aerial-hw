@@ -2,11 +2,12 @@ from abc import ABC, abstractmethod
 from cv2.typing import MatLike
 from app.io import Measurement
 from app.io import Setpoint
+from app.telemetry import TelemetryFlags
 
 class Planner(ABC):
 
     @abstractmethod
-    def update(self, measurement: Measurement, frame: MatLike, dt: float) -> Setpoint:
+    def update(self, measurement: Measurement, frame: MatLike, flags: TelemetryFlags, dt: float) -> Setpoint:
         """
         Run one frame on the planner state machine
 

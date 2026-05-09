@@ -1,9 +1,10 @@
 import time
 from app import *
 from app.gui import Gui
+from app.io import Command
 from app.io.controller import Controller
 from app.io.keyboard import Keyboard
-from app.telemetry import Telemetry
+from app.telemetry import Telemetry, TelemetryFlags
 from app.planner.example import ExamplePlanner
 from app.log import Logger
 
@@ -18,7 +19,7 @@ class App:
         self.gui            = Gui()
         self.controller     = Controller()
         self.keyboard       = Keyboard()
-        self.telemetry      = Telemetry()
+        self.telemetry      = Telemetry(self.gui.layout.scene.overlay)
         self.logger         = Logger()
         self.scan_planner   = ExamplePlanner()
         self.race_planner   = ExamplePlanner()
@@ -65,14 +66,21 @@ class App:
             old_t = new_t
 
             # Read telemetry
-            measurement = self.telemetry.measurement.get()
-            frame = self.telemetry.frame.get()
+            measurement, new_measurement = self.telemetry.measurement.get()
+            frame, new_frame = self.telemetry.frame.get()
+            telemetry_flags = TelemetryFlags.NEITHER
+            if new_measurement:
+                telemetry_flags |= TelemetryFlags.NEW_MEASUREMENT
+                self.gui.update_measurement_indicators(measurement)
+            if new_frame:
+                telemetry_flags |= TelemetryFlags.NEW_FRAME
+                self.gui.update_camera_image(frame)
 
             # Compute command / setpoint
             match self.flight_status:
 
                 case FlightStatus.LANDED:
-                    pass
+                    self.telemetry.command = Command()
 
                 case FlightStatus.TKOF:
                     if self.telemetry.tkof(dt):
@@ -90,11 +98,12 @@ class App:
                                     self.controller.update(dt)
                                     self.telemetry.send_command(self.controller, dt)
                         case ControlMode.PLANNER:
-                            match self.gui.lap_type:
-                                case PlanStage.SCAN:
-                                    self.telemetry.send_setpoint(self.scan_planner.update(measurement, frame, dt), dt)
-                                case PlanStage.RACE:
-                                    self.telemetry.send_setpoint(self.race_planner.update(measurement, frame, dt), dt)
+                            if telemetry_flags != TelemetryFlags.NEITHER:
+                                match self.gui.lap_type:
+                                    case PlanStage.SCAN:
+                                            self.telemetry.send_setpoint(self.scan_planner.update(measurement, frame, dt), dt)
+                                    case PlanStage.RACE:
+                                        self.telemetry.send_setpoint(self.race_planner.update(measurement, frame, dt), dt)
                 
                 case FlightStatus.LAND:
                     if self.telemetry.land(dt):
@@ -102,9 +111,9 @@ class App:
                         self.gui.landed()
 
             # Update GUI
-            # TODO apply overlay on frame = overlay(frame, measurement)
-            command = self.telemetry.command
-            quit = self.gui.update(measurement, frame, command, dt)
+            self.gui.update_command_indicators(self.telemetry.command)
+            self.gui.render(dt)
+            quit = self.gui.poll_events()
         
         self.gui.quit()
 
