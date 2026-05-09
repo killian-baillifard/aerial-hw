@@ -1,9 +1,10 @@
 from pygame import Rect, Surface, draw, mouse
 from pygame.colordict import THECOLORS as COLORS
+from app.gui.widgets import Color
 from overrides import override
 from enum import Enum
 from pyglm import glm
-from typing import Callable
+from app.generics import Event
 from app.gui.widgets import Widget
 from app.gui.widgets.label import Label
 
@@ -11,8 +12,6 @@ class Button(Widget):
 
     CORNER_RADIUS = 5
     BORDER_WIDTH = 2
-
-    TEXT_COLOR = (6, 206, 0, 255)
 
     BG_DISABLED_COLOR = (0, 0, 0, 0)
     BG_IDLE_COLOR = COLORS["gray20"]
@@ -35,11 +34,11 @@ class Button(Widget):
         
         # Set properties
         self.rect = Rect(pos.x, pos.y, width, height)
-        self.label = Label(pos, text, color=(6, 206, 0, 255), z_index=z_index + 1)
+        self.label = Label(pos, text, color=Button.BORDER_IDLE_COLOR, z_index=z_index + 1)
         self.state = Button.State.DISABLED if disabled else Button.State.IDLE
-        self.on_press_handler: Callable[[], None] = None
-        self.on_release_handler: Callable[[], None] = None
-        self.enabled = True
+        self.press_event: Event = Event()
+        self.release_event: Event = Event()
+        self.enabled = not disabled
 
         # Center label on button
         label_rect = self.label.get_rect()
@@ -48,6 +47,16 @@ class Button(Widget):
             pos.y + (height - label_rect.h) / 2
         )
         self.label.set_position(centered_pos)
+
+        # Set default colors
+        self.bg_disabled_color = Button.BG_DISABLED_COLOR
+        self.bg_idle_color = Button.BG_IDLE_COLOR
+        self.bg_hovered_color = Button.BG_HOVERED_COLOR
+        self.bg_pressed_color = Button.BG_PRESSED_COLOR
+        self.border_disabled_color = Button.BORDER_DISABLED_COLOR
+        self.border_idle_color = Button.BORDER_IDLE_COLOR
+        self.border_hovered_color = Button.BORDER_HOVERED_COLOR
+        self.border_pressed_color = Button.BORDER_PRESSED_COLOR
 
     def __del__(self) -> None:
         super().__del__()
@@ -58,11 +67,18 @@ class Button(Widget):
     def enable(self) -> None:
         self.enabled = True
 
-    def set_press_handler(self, handler: Callable[[], None]) -> None:
-        self.on_press_handler = handler
+    def set_bg_color(self, disabled: Color, idle: Color, hover: Color, pressed: Color) -> None:
+        self.bg_disabled_color = disabled
+        self.bg_idle_color = idle
+        self.bg_hovered_color = hover
+        self.bg_pressed_color = pressed
 
-    def set_release_handler(self, handler: Callable[[], None]) -> None:
-        self.on_release_handler = handler
+    def set_border_color(self, disabled: Color, idle: Color, hover: Color, pressed: Color) -> None:
+        self.border_disabled_color = disabled
+        self.border_idle_color = idle
+        self.border_hovered_color = hover
+        self.border_pressed_color = pressed
+        self.label.set_color(idle)
 
     def set_text(self, text: str) -> None:
         self.label.set_text(text)
@@ -74,7 +90,7 @@ class Button(Widget):
         self.label.set_position(centered_pos)
 
     @override
-    def update(self) -> None:
+    def update(self, dt: float) -> None:
 
         # Compute collision with mouse
         x, y = mouse.get_pos()
@@ -90,13 +106,11 @@ class Button(Widget):
             self.state = Button.State.IDLE
         elif hovered and left and self.state is Button.State.HOVERED:
             self.state = Button.State.PRESSED
-            if self.on_press_handler is not None:
-                self.on_press_handler()
+            self.press_event()
         elif hovered and not left:
             if self.state is Button.State.PRESSED:
                 self.state = Button.State.HOVERED
-                if self.on_release_handler is not None:
-                    self.on_release_handler()
+                self.release_event()
             if self.state is Button.State.IDLE:
                 self.state = Button.State.HOVERED
         elif not hovered and self.state is not Button.State.IDLE:
@@ -106,14 +120,14 @@ class Button(Widget):
     def draw(self, surface: Surface) -> None:
         match self.state:
             case Button.State.DISABLED:
-                draw.rect(surface, Button.BG_DISABLED_COLOR, self.rect, 0, Button.CORNER_RADIUS)
-                draw.rect(surface, Button.BORDER_DISABLED_COLOR, self.rect, Button.BORDER_WIDTH, Button.CORNER_RADIUS)
+                draw.rect(surface, self.bg_disabled_color, self.rect, 0, Button.CORNER_RADIUS)
+                draw.rect(surface, self.border_disabled_color, self.rect, Button.BORDER_WIDTH, Button.CORNER_RADIUS)
             case Button.State.IDLE:
-                draw.rect(surface, Button.BG_IDLE_COLOR, self.rect, 0, Button.CORNER_RADIUS)
-                draw.rect(surface, Button.BORDER_IDLE_COLOR, self.rect, Button.BORDER_WIDTH, Button.CORNER_RADIUS)
+                draw.rect(surface, self.bg_idle_color, self.rect, 0, Button.CORNER_RADIUS)
+                draw.rect(surface, self.border_idle_color, self.rect, Button.BORDER_WIDTH, Button.CORNER_RADIUS)
             case Button.State.HOVERED:
-                draw.rect(surface, Button.BG_HOVERED_COLOR, self.rect, 0, Button.CORNER_RADIUS)
-                draw.rect(surface, Button.BORDER_HOVERED_COLOR, self.rect, Button.BORDER_WIDTH, Button.CORNER_RADIUS)
+                draw.rect(surface, self.bg_hovered_color, self.rect, 0, Button.CORNER_RADIUS)
+                draw.rect(surface, self.border_hovered_color, self.rect, Button.BORDER_WIDTH, Button.CORNER_RADIUS)
             case Button.State.PRESSED:
-                draw.rect(surface, Button.BG_PRESSED_COLOR, self.rect, 0, Button.CORNER_RADIUS)
-                draw.rect(surface, Button.BORDER_PRESSED_COLOR, self.rect, Button.BORDER_WIDTH, Button.CORNER_RADIUS)
+                draw.rect(surface, self.bg_pressed_color, self.rect, 0, Button.CORNER_RADIUS)
+                draw.rect(surface, self.border_pressed_color, self.rect, Button.BORDER_WIDTH, Button.CORNER_RADIUS)

@@ -9,8 +9,8 @@ class Image(Widget):
 
     PALETTE: np.ndarray = np.linspace((0, 0, 0), (255, 255, 255), 256, dtype=np.uint8)
 
-    def __init__(self, pos: glm.uvec2, width: int = 640, height: int = 480, zindex: int = 0) -> None:
-        super().__init__(zindex)
+    def __init__(self, pos: glm.uvec2, width: int = 640, height: int = 480, z_index: int = 0) -> None:
+        super().__init__(z_index)
         self.rect = Rect(pos.x, pos.y, width, height)
         self.image = None
 

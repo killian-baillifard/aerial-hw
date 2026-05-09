@@ -1,136 +1,229 @@
-import pygame, os, time
-from enum import Enum
-from copy import deepcopy
+import os, pygame
+import numpy as np
+from threading import Lock
+from cv2.typing import MatLike
 from pyglm import glm
+from app import Link, PlanStage, ControlMode, CommandSource
+from app.generics import Event
 from app.gui.widgets import Widget
-from app.gui.widgets.image import Image
-from app.gui.widgets.label import Label
-from app.gui.widgets.button import Button
-from app.gui.widgets.joystick import Joystick
-from app.gui.widgets.roll import Roll
-from app.gui.widgets.pitch import Pitch
-from app.gui.widgets.shutter import Shutter
-from app.gui.widgets.gauge import Gauge
-
-MARGIN = 10
-BTN_WIDTH = 200
-TOP_BAR = 30
-WIDTH = 1280
-HEIGHT = 720
-BOTTOM_BAR = 30
+from app.gui.layout import Layout
+from app.gui.audio import Audio
+from app.gui.voicewarningsystem import VoiceWarningSystem
+from app.io import Measurement
+from app.io import Command
 
 class Gui:
 
-    WINDOW_SIZE         = (WIDTH, HEIGHT + TOP_BAR + BOTTOM_BAR + 3 * MARGIN)
-    PRIMARY_COLOR       = (6, 206, 0, 255)
-    BG_COLOR            = (30, 30, 30)
-    REFRESH_FREQUENCY   = 60.0
-    REFRESH_PERIOD      = 1.0 / REFRESH_FREQUENCY
-
-    class Event(Enum):
-        QUIT_BUTTON         = 0
-        TELEMETRY_BUTTON    = 1
-        LINK_TYPE_BUTTON    = 2
-        CONTROLS_BUTTON     = 3
-        SIMULATION_BUTTON   = 4
-        PLANNER_BUTTON      = 5
+    CLEAR_COLOR = (30, 30, 30)
+    JOYSTICKS_LEN = 200
+    PICTH_DISPLACEMENT = 250
 
     def __init__(self) -> None:
 
         # Initialize window
         pygame.init()
         pygame.joystick.init()
-        icon = pygame.image.load(os.path.join("assets/icon.png"))
+        icon = pygame.image.load(os.path.join("assets", "icon.png"))
         pygame.display.set_icon(icon)
-        self.screen = pygame.display.set_mode(Gui.WINDOW_SIZE)
-        pygame.display.set_caption("Crazyfly telemetry tool")
+        self.screen = pygame.display.set_mode(Layout.WINDOW_SIZE)
+        pygame.display.set_caption("Crazyflie telemetry")
 
-        # Declare GUI controls
+        # Intialize submodules
+        self.layout = Layout()
+        self.audio = Audio()
+        self.voice_warning_system = VoiceWarningSystem(self.audio)
 
-        image_center = glm.uvec2(WIDTH / 2, TOP_BAR + HEIGHT / 2 + 2 * MARGIN)
+        # Initialize events
+        self.connect_event: Event[Link] = Event[Link]()
+        self.disconnect_event: Event = Event()
+        self.tkof_event: Event = Event()
+        self.land_event: Event = Event()
+        self.start_recording_event: Event = Event()
+        self.stop_recording_event: Event = Event()
+        self.manual_controls_event: Event = Event()
 
-        self.telemetry_button = Button(glm.uvec2(MARGIN, MARGIN), "TELEMETRY [OFF]", BTN_WIDTH)
-        self.link_type_button = Button(glm.uvec2(2 * MARGIN + BTN_WIDTH, MARGIN), "LINK [RADIO]", BTN_WIDTH)
-        self.controls_button = Button(glm.uvec2(3 * MARGIN + 2 * BTN_WIDTH, MARGIN), "CONTROLLER [OFF]", BTN_WIDTH)
-        self.simulation_button = Button(glm.uvec2(4 * MARGIN + 3 * BTN_WIDTH, MARGIN), "SIMULATION [OFF]", BTN_WIDTH)
-        self.planner_button = Button(glm.uvec2(5 * MARGIN + 4 * BTN_WIDTH, MARGIN), "PLANNER [OFF]", BTN_WIDTH)
+        # Register event listeners
+        self.layout.link_btn.release_event      += self.link_btn_click_handler
+        self.layout.ctrl_btn.release_event      += self.ctrl_btn_click_handler
+        self.layout.source_btn.release_event    += self.source_btn_click_handler
+        self.layout.con_btn.release_event       += self.con_btn_click_handler
+        self.layout.vws_btn.release_event       += self.vws_btn_click_handler
+        self.layout.tkof_land_btn.release_event += self.tkof_land_btn_click_handler
+        self.layout.rec_btn.release_event       += self.rec_btn_click_handler
 
-        self.camera_image = Image(glm.uvec2(0, TOP_BAR + 2 * MARGIN), WIDTH, HEIGHT)
+        # Initialize state
+        self.lock = Lock()
+        self.link = Link.SIMULATION
+        self.control_mode = ControlMode.MANUAL
+        self.input_source = CommandSource.CONTROLLER
+        self.lap_type = PlanStage.SCAN
 
-        self.xy_joystick = Joystick(image_center, glm.ivec2(0, 0))
-        _ = Label(glm.uvec2(image_center.x + MARGIN, image_center.y + MARGIN), "XY", color=Gui.PRIMARY_COLOR, z_index=2)
-        
-        self.z_joystick = Joystick(glm.uvec2(WIDTH - 2 * MARGIN, image_center.y), glm.ivec2(0, 0))
-        _ = Label(glm.uvec2(WIDTH - 4 * MARGIN - 2, image_center.y - MARGIN + 2), "Z", color=Gui.PRIMARY_COLOR, z_index=2)
+    def update_command_indicators(self, command: Command) -> None:
+        self.layout.xy_joystick.set_delta(glm.ivec2(-command.velocity.y * Gui.JOYSTICKS_LEN, -command.velocity.x * Gui.JOYSTICKS_LEN))
+        self.layout.z_joystick.set_delta(glm.ivec2(0, -command.velocity.z * Gui.JOYSTICKS_LEN))
+        self.layout.yaw_joystick.set_delta(glm.ivec2(-(command.yaw_rate / Command.YAW_RATE) * Gui.JOYSTICKS_LEN, 0))
+        if self.layout.rec_btn.latched:
+            self.layout.shutter_indicator.trigger()
 
-        self.yaw_joystick = Joystick(glm.uvec2(image_center.x, TOP_BAR + HEIGHT), glm.ivec2(0, 0))
-        _ = Label(glm.uvec2(image_center.x - MARGIN - 7, TOP_BAR + HEIGHT - 3 * MARGIN), "YAW", color=Gui.PRIMARY_COLOR, z_index=2)
+    def update_measurement_indicators(self, measurement: Measurement) -> None:
+        self.layout.x_indicator.set_text(f"[X = {measurement.position.x:.3f} m]")
+        self.layout.y_indicator.set_text(f"[Y = {measurement.position.y:.3f} m]")
+        self.layout.z_indicator.set_text(f"[Z = {measurement.position.z:.3f} m]")
+        self.layout.yaw_indicator.set_text(f"[YAW = {np.rad2deg(measurement.rotation.z):.3f} °]")
+        self.layout.roll_indicator.set_roll(-measurement.rotation.x)
+        self.layout.pitch_indicator.set_pitch(-measurement.rotation.y * Gui.PICTH_DISPLACEMENT)
+        self.layout.batt_indicator.set_text(f"[BATT = {int(100 * measurement.battery):d} %]")
+        self.layout.batt_gauge.set_progress(measurement.battery)
+        self.layout.scene.set_view(measurement.position, measurement.rotation)
+        self.voice_warning_system.update_measurement(measurement)
 
-        self.roll_indicator = Roll(image_center, 0.0, 1)
-        self.pitch_indicator = Pitch(image_center, 0.0, 1)
-        self.shutter_indicator = Shutter(image_center, glm.uvec2(image_center.x - MARGIN, HEIGHT / 2 - MARGIN))
+    def update_camera_image(self, frame: MatLike) -> None:
+        h, w = frame.shape[:2]
+        surface = pygame.image.frombuffer(frame.tobytes(), (w, h), "RGB")
+        self.layout.camera_image.set_color_image(surface)
 
-        self.x_indicator = Label(glm.uvec2(MARGIN, TOP_BAR + HEIGHT + 3 * MARGIN), "[X = 0.000 m]", color=Gui.PRIMARY_COLOR, z_index=2)
-        self.y_indicator = Label(glm.uvec2(2 * MARGIN + BTN_WIDTH, TOP_BAR + HEIGHT + 3 * MARGIN), "[Y = 0.000 m]", color=Gui.PRIMARY_COLOR, z_index=2)
-        self.z_indicator = Label(glm.uvec2(3 * MARGIN + 2 * BTN_WIDTH, TOP_BAR + HEIGHT + 3 * MARGIN), "[Z = 0.000 m]", color=Gui.PRIMARY_COLOR, z_index=2)
-        self.yaw_indicator = Label(glm.uvec2(4 * MARGIN + 3 * BTN_WIDTH, TOP_BAR + HEIGHT + 3 * MARGIN), "[YAW = 0.000 °]", color=Gui.PRIMARY_COLOR, z_index=2)
-        
-        _ = Label(glm.uvec2(5 * BTN_WIDTH - 2 * MARGIN, TOP_BAR + HEIGHT + 3 * MARGIN), "[BATT]", color=Gui.PRIMARY_COLOR, z_index=2)
-        self.batt_gauge = Gauge(glm.uvec2(6 * MARGIN + 5 * BTN_WIDTH, TOP_BAR + HEIGHT + 3 * MARGIN), Gauge.Direction.WEST, length=BTN_WIDTH)
-
-        # Set event handlers
-        self.telemetry_button.set_release_handler(self.on_telemetry_button_click)
-        self.link_type_button.set_release_handler(self.on_link_type_click)
-        self.controls_button.set_release_handler(self.on_controls_button_click)
-        self.simulation_button.set_release_handler(self.on_simulation_button_click)
-        self.planner_button.set_release_handler(self.on_planner_button_click)
-
-        # Initialize gui state
-        self.last_time = time.perf_counter()
-        self.events: list[Gui.Event] = []
-
-    def on_telemetry_button_click(self) -> None:
-        self.events.append(Gui.Event.TELEMETRY_BUTTON)
-
-    def on_link_type_click(self) -> None:
-        self.events.append(Gui.Event.LINK_TYPE_BUTTON)
-
-    def on_controls_button_click(self) -> None:
-        self.events.append(Gui.Event.CONTROLS_BUTTON)
-
-    def on_simulation_button_click(self) -> None:
-        self.events.append(Gui.Event.SIMULATION_BUTTON)
-
-    def on_planner_button_click(self) -> None:
-        self.events.append(Gui.Event.PLANNER_BUTTON)
-
-    def update(self) -> list[Event]:
-
-        # Draw next frame
-        self.screen.fill(Gui.BG_COLOR)
+    def render(self, dt: float) -> None:
+        self.voice_warning_system.update_counter(dt)
+        Widget.update_instances(dt)
+        self.screen.fill(Gui.CLEAR_COLOR)
+        self.lock.acquire()
         Widget.draw_instances(self.screen)
+        self.lock.release()
         pygame.display.flip()
 
-        # Throttle GUI execution
-        new_time = time.perf_counter()
-        time_delta = new_time - self.last_time
-        self.last_time = new_time
-        time_to_wait = Gui.REFRESH_PERIOD - time_delta
-        if time_to_wait > 0:
-            time.sleep(time_to_wait)
-
-        # Poll for window close button click
+    def poll_events(self) -> bool:
+        quit = False
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                self.events.append(Gui.Event.QUIT_BUTTON)
-        
-        # Update widgets logic
-        Widget.update_instances()
+                quit = True
+        return quit
 
-        # Return GUI events
-        events = deepcopy(self.events)
-        self.events.clear()
-        return events
+    def link_btn_click_handler(self) -> None:
+        self.audio.play(Audio.Track.BUTTON)
+        match self.link:
+            case Link.SIMULATION:
+                self.link = Link.WIFI
+            case Link.WIFI:
+                self.link = Link.RADIO
+            case Link.RADIO:
+                self.link = Link.SIMULATION
+        match self.link:
+            case Link.SIMULATION:
+                self.layout.link_btn.set_text("LINK [SIM]")
+            case Link.WIFI:
+                self.layout.link_btn.set_text("LINK [WIFI]")
+            case Link.RADIO:
+                self.layout.link_btn.set_text("LINK [RADIO]")
+
+    def update_control_mode(self) -> None:
+        self.audio.play(Audio.Track.BUTTON)
+        match self.control_mode:
+            case ControlMode.MANUAL:
+                self.layout.ctrl_btn.set_text("CTRL [MAN]")
+                match self.input_source:
+                    case CommandSource.KEYBOARD:
+                        self.layout.source_btn.set_text("KEYBOARD")
+                    case CommandSource.CONTROLLER:
+                        self.layout.source_btn.set_text("CONTROLLER")
+            case ControlMode.PLANNER:
+                self.layout.ctrl_btn.set_text("CTRL [PLAN]")
+                match self.lap_type:
+                    case PlanStage.SCAN:
+                        self.layout.source_btn.set_text("STAGE [SCAN]")
+                    case PlanStage.RACE:
+                        self.layout.source_btn.set_text("STAGE [RACE]")
+
+    def ctrl_btn_click_handler(self) -> None:
+        self.audio.play(Audio.Track.BUTTON)
+        match self.control_mode:
+            case ControlMode.MANUAL:
+                self.control_mode = ControlMode.PLANNER
+            case ControlMode.PLANNER:
+                self.control_mode = ControlMode.MANUAL
+                self.manual_controls_event()
+        self.update_control_mode()
+
+    def source_btn_click_handler(self) -> None:
+        self.audio.play(Audio.Track.BUTTON)
+        match self.control_mode:
+            case ControlMode.MANUAL:
+                match self.input_source:
+                    case CommandSource.KEYBOARD:
+                        self.input_source = CommandSource.CONTROLLER
+                    case CommandSource.CONTROLLER:
+                        self.input_source = CommandSource.KEYBOARD
+            case ControlMode.PLANNER:
+                match self.lap_type:
+                    case PlanStage.SCAN:
+                        self.lap_type = PlanStage.RACE
+                    case PlanStage.RACE:
+                        self.lap_type = PlanStage.SCAN
+        self.update_control_mode()
+
+    def con_btn_click_handler(self) -> None:
+        self.audio.play(Audio.Track.BUTTON)
+        self.layout.con_btn.set_text("CON [...]")
+        self.layout.con_btn.disable()
+        if self.layout.con_btn.latched:
+            self.layout.link_btn.disable()
+            self.connect_event(self.link)
+        else:
+            self.layout.tkof_land_btn.disable()
+            self.disconnect_event()
+
+    def connected(self) -> None:
+        self.lock.acquire()
+        self.layout.con_btn.set_text("CON [ON]")
+        self.layout.con_btn.enable()
+        self.layout.tkof_land_btn.enable()
+        self.lock.release()
+
+    def disconnected(self) -> None:
+        self.lock.acquire()
+        if self.layout.con_btn.latched:
+            self.layout.con_btn.release_handler()
+        self.layout.con_btn.set_text("CON [OFF]")
+        self.layout.con_btn.enable()
+        self.layout.link_btn.enable()
+        self.lock.release()
+
+    def vws_btn_click_handler(self) -> None:
+        self.audio.play(Audio.Track.BUTTON)
+        if self.layout.vws_btn.latched:
+            self.layout.vws_btn.set_text("VWS [ON]")
+            self.voice_warning_system.enable()
+        else:
+            self.layout.vws_btn.set_text("VWS [OFF]")
+            self.voice_warning_system.disable()
+
+    def tkof_land_btn_click_handler(self) -> None:
+        self.audio.play(Audio.Track.BUTTON)
+        self.layout.tkof_land_btn.disable()
+        if self.layout.tkof_land_btn.latched:
+            self.layout.tkof_land_btn.set_text("TKOF")
+            self.layout.con_btn.disable()
+            self.tkof_event()
+        else:
+            self.layout.tkof_land_btn.set_text("LAND")
+            self.land_event()
+
+    def airborn(self) -> None:
+        self.layout.tkof_land_btn.set_text("AIRBORN")
+        self.layout.tkof_land_btn.enable()
+
+    def landed(self) -> None:
+        self.layout.tkof_land_btn.set_text("LANDED")
+        self.layout.tkof_land_btn.enable()
+        self.layout.con_btn.enable()
+
+    def rec_btn_click_handler(self) -> None:
+        self.audio.play(Audio.Track.SHUTTER)
+        if self.layout.rec_btn.latched:
+            self.layout.rec_btn.set_text("REC [ON]")
+            self.start_recording_event()
+        else:
+            self.layout.rec_btn.set_text("REC [OFF]")
+            self.stop_recording_event()
 
     def quit(self) -> None:
         pygame.quit()

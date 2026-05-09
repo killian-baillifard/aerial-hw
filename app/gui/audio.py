@@ -1,22 +1,15 @@
 import os
-from enum import IntEnum
+from enum import StrEnum
 from pygame import mixer
 from pygame.mixer import Sound, Channel
 
 class Audio:
 
-    COOLDOWNS: list[float] = [
-        0.0,
-        0.0,
-        6.0,
-        6.0
-    ]
-
-    class Track(IntEnum):
-        BUTTON      = 0
-        SHUTTER     = 1
-        ALTITUDE    = 2
-        FUEL_LOW    = 3
+    class Track(StrEnum):
+        BUTTON      = "button"
+        SHUTTER     = "shutter"
+        ALTITUDE    = "altitude"
+        FUEL_LOW    = "fuel_low"
 
     def __init__(self) -> None:
 
@@ -24,26 +17,9 @@ class Audio:
         mixer.init()
         mixer.set_reserved(len(self.Track))
 
-        # Load sound effects
-        self.sfxs = [
-            Sound(os.path.join("sfx", "button.wav")),
-            Sound(os.path.join("sfx", "shutter.wav")),
-            Sound(os.path.join("sfx", "altitude.wav")),
-            Sound(os.path.join("sfx", "fuel_low.wav"))
-        ]
+        # Load sound effects and create channels
+        self.sounds = {key: Sound(os.path.join("sfx", f"{str(key)}.wav")) for key in Audio.Track}
+        self.channels = {key: Channel(i) for i, key in enumerate(Audio.Track)}
 
-        # Create channels
-        self.channels = [Channel(i) for i in range(len(self.sfxs))]
-
-        # Create cooldowns
-        self.cooldowns = len(Audio.COOLDOWNS) * [0.0]
-
-    def update(self) -> None:
-        for i, cooldown in enumerate(self.cooldowns):
-            if cooldown > 0:
-                self.cooldowns[i] = max(0.0, cooldown - (1.0 / 60.0))
-
-    def play(self, sound: Track) -> None:
-        if self.cooldowns[sound] == 0:
-            self.channels[sound].play(self.sfxs[sound])
-            self.cooldowns[sound] = Audio.COOLDOWNS[sound]
+    def play(self, track: Track) -> None:
+        self.channels[track].play(self.sounds[track])
