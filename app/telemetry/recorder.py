@@ -5,6 +5,7 @@ from datetime import datetime
 from cv2.typing import MatLike
 from app.io import Measurement
 from app.telemetry.camera import WIDTH, HEIGHT
+import atexit
 
 class Recorder:
 
@@ -15,6 +16,9 @@ class Recorder:
         # Create recordings folders
         if not os.path.exists(Recorder.RECORDINGS_PATH):
             os.mkdir(Recorder.RECORDINGS_PATH)
+
+        # Set crash saver
+        atexit.register(self.crash_save)
 
         # Set initial state and get video codex
         self.fourcc = cv2.VideoWriter.fourcc(*'FFV1')
@@ -42,6 +46,7 @@ class Recorder:
     def record(self, measurement: Measurement, frame: MatLike):
         if self.recording:
             self.csv_writer.writerow(measurement.to_array())
+            self.csv_file.flush()
             self.avi_writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
 
     def stop_recording(self) -> None:
@@ -51,3 +56,7 @@ class Recorder:
         self.csv_file = None
         self.csv_writer = None
         self.avi_writer = None
+
+    def crash_save(self) -> None:
+        if self.recording:
+            self.stop_recording()
