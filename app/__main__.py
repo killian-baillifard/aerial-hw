@@ -6,7 +6,7 @@ from app.io.controller import Controller
 from app.io.keyboard import Keyboard
 from app.telemetry import Telemetry, TelemetryFlags
 from app.planner.example import ExamplePlanner
-from app.log import Logger
+from app.telemetry.recorder import Recorder
 
 class App:
 
@@ -20,7 +20,7 @@ class App:
         self.controller     = Controller()
         self.keyboard       = Keyboard()
         self.telemetry      = Telemetry(self.gui.layout.scene.overlay)
-        self.logger         = Logger()
+        self.recorder       = Recorder()
         self.scan_planner   = ExamplePlanner()
         self.race_planner   = ExamplePlanner()
         self.flight_status  = FlightStatus.LANDED
@@ -30,8 +30,8 @@ class App:
         self.gui.disconnect_event           += self.telemetry.disconnect
         self.gui.tkof_event                 += self.tkof_event_handler
         self.gui.land_event                 += self.land_event_handler
-        self.gui.start_recording_event      += self.start_recording_event_handler
-        self.gui.stop_recording_event       += self.stop_recording_event_handler
+        self.gui.start_recording_event      += self.recorder.start_recording
+        self.gui.stop_recording_event       += self.recorder.stop_recording
         self.gui.manual_controls_event      += self.manual_controls_event_handler
         self.telemetry.connected_event      += self.gui.connected
         self.telemetry.disconnected_event   += self.gui.disconnected
@@ -41,12 +41,6 @@ class App:
 
     def land_event_handler(self) -> None:
         self.flight_status = FlightStatus.LAND
-
-    def start_recording_event_handler(self) -> None:
-        pass
-
-    def stop_recording_event_handler(self) -> None:
-        pass
 
     def manual_controls_event_handler(self) -> None:
         self.telemetry.z = self.telemetry.measurement.read().position.z
@@ -68,13 +62,14 @@ class App:
             # Read telemetry
             measurement, new_measurement = self.telemetry.measurement.get()
             frame, new_frame = self.telemetry.frame.get()
-            telemetry_flags = TelemetryFlags.NEITHER
+            flags = TelemetryFlags.NEITHER
             if new_measurement:
-                telemetry_flags |= TelemetryFlags.NEW_MEASUREMENT
+                flags |= TelemetryFlags.NEW_MEASUREMENT
                 self.gui.update_measurement_indicators(measurement)
             if new_frame:
-                telemetry_flags |= TelemetryFlags.NEW_FRAME
+                flags |= TelemetryFlags.NEW_FRAME
                 self.gui.update_camera_image(frame)
+                self.recorder.record(measurement, frame)
 
             # Compute command / setpoint
             match self.flight_status:
@@ -98,12 +93,12 @@ class App:
                                     self.controller.update(dt)
                                     self.telemetry.send_command(self.controller, dt)
                         case ControlMode.PLANNER:
-                            if telemetry_flags != TelemetryFlags.NEITHER:
+                            if flags != TelemetryFlags.NEITHER:
                                 match self.gui.lap_type:
                                     case PlanStage.SCAN:
-                                            self.telemetry.send_setpoint(self.scan_planner.update(measurement, frame, dt), dt)
+                                            self.telemetry.send_setpoint(self.scan_planner.update(measurement, frame, flags, dt), dt)
                                     case PlanStage.RACE:
-                                        self.telemetry.send_setpoint(self.race_planner.update(measurement, frame, dt), dt)
+                                        self.telemetry.send_setpoint(self.race_planner.update(measurement, frame, flags, dt), dt)
                 
                 case FlightStatus.LAND:
                     if self.telemetry.land(dt):

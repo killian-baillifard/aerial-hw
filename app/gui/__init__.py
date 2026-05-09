@@ -220,10 +220,10 @@ class Gui:
         self.audio.play(Audio.Track.SHUTTER)
         if self.layout.rec_btn.latched:
             self.layout.rec_btn.set_text("REC [ON]")
-            print("TODO : Start recording")
+            self.start_recording_event()
         else:
             self.layout.rec_btn.set_text("REC [OFF]")
-            print("TODO : Stop recording")
+            self.stop_recording_event()
 
     def quit(self) -> None:
         pygame.quit()
