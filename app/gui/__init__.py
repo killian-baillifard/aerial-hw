@@ -77,7 +77,7 @@ class Gui:
         # Update command indicators
         self.layout.xy_joystick.set_delta(glm.ivec2(-command.velocity.y * Gui.JOYSTICKS_LEN, -command.velocity.x * Gui.JOYSTICKS_LEN))
         self.layout.z_joystick.set_delta(glm.ivec2(0, -command.velocity.z * Gui.JOYSTICKS_LEN))
-        self.layout.yaw_joystick.set_delta(glm.ivec2(-command.yaw_rate * Gui.JOYSTICKS_LEN, 0))
+        self.layout.yaw_joystick.set_delta(glm.ivec2(-(command.yaw_rate / Command.YAW_RATE) * Gui.JOYSTICKS_LEN, 0))
 
         # Update capture indicator
         if self.layout.rec_btn.latched:

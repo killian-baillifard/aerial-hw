@@ -11,6 +11,7 @@ class Keyboard(Command):
 
     def __init__(self) -> None:
         super().__init__()
+        self.yaw_axis = 0.0
 
     @staticmethod
     def virtual_axis(axis: float, keys: ScancodeWrapper, inc_key: int, dec_key: int, dt: float) -> float:
@@ -54,4 +55,5 @@ class Keyboard(Command):
         self.velocity.x = Keyboard.virtual_axis(self.velocity.x, keys, K_w, K_s, dt)
         self.velocity.y = Keyboard.virtual_axis(self.velocity.y, keys, K_a, K_d, dt)
         self.velocity.z = Keyboard.virtual_axis(self.velocity.z, keys, K_LSHIFT, K_LCTRL, dt)
-        self.yaw_rate = Keyboard.virtual_axis(self.yaw_rate, keys, K_q, K_e, dt) * Command.YAW_RATE
+        self.yaw_axis = Keyboard.virtual_axis(self.yaw_axis, keys, K_q, K_e, dt)
+        self.yaw_rate = self.yaw_axis * Command.YAW_RATE
