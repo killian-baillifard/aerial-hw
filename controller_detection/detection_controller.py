@@ -58,25 +58,25 @@ class DetectionController:
         # Run inference on the camera data
         # Note: iou=0.7 allows bounding boxes to heavily overlap without being filtered out
         results = self.model.predict(source=camera_data, conf=0.5, iou=0.7)
-        
+
         # Extract coordinates and confidences
         keypoints = results.keypoints
         if keypoints is not None and keypoints.xy.numel() > 0:
             for i in range(len(keypoints.xy)):
                 coords = keypoints.xy[i].cpu().numpy()  # Array of 4 (x,y) corners
                 confs = keypoints.conf[i].cpu().numpy() # Array of 4 confidences
-                
+
                 print(f"\n--- Gate {i+1} ---")
                 corner_names = ["Bottom-Left", "Top-Left", "Top-Right", "Bottom-Right"]
-                
+
                 for j in range(4):
                     pred_x, pred_y = int(coords[j][0]), int(coords[j][1])
                     print(f"{corner_names[j]}: ({pred_x}, {pred_y}), Conf: {confs[j]:.2f}")
-                
+
         pass
 
     def set_control_command(self):
-        
+
         if self.current_setpoint is None:
             if self.setpoint_queue.empty():
                 # If no setpoint is set, just hover in place
@@ -96,7 +96,7 @@ class DetectionController:
 
         if reached_position and reached_yaw:
             self.current_setpoint = self.setpoint_queue.get() if not self.setpoint_queue.empty() else None
-        
+
         return ctrl_cmd
 
     def compute_command(self, sensor_data, camera_data, dt):
@@ -124,16 +124,16 @@ class DetectionController:
 
         ### PASS GATE ###
         elif self.state == "pass_gate":
-            
+
             pass
 
         ### LAND ###
         elif self.state == "land":
-            
+
             pass
 
-        
-        
+
+
         control_command = self.set_control_command()
 
         return control_command
