@@ -19,9 +19,6 @@ class RacePlanner(Planner):
     POS_TOL         = 0.05          # m
     YAW_TOL         = np.pi / 12    # radians
 
-    POS_INTERP_DIST = 0.5           # m
-    YAW_INTERP_DIST = np.pi / 8     # radians
-
     def __init__(self):
         self.waypoints: list[Setpoint]  = []
         self.gates: list[Setpoint]      = []
@@ -41,16 +38,25 @@ class RacePlanner(Planner):
         yaws: list[float]           = [wrap(row[3]) for row in raw_csv_data]
         self.gates                  = [Setpoint(position, yaw) for position, yaw in zip(positions, yaws)]
 
-        # Build trajectory with two points on either end of each gate
+        # Build trajectory starting from home position
         self.waypoints.clear()
-        for gate in self.gates:
-            normal = glm.vec3(
-                RacePlanner.APPROACH_DIST * np.cos(gate.yaw),
-                RacePlanner.APPROACH_DIST * np.sin(gate.yaw),
-                0.0
-            )
-            self.waypoints.append(Setpoint(gate.position - normal, gate.yaw))
-            self.waypoints.append(Setpoint(gate.position + normal, gate.yaw))
+        home_to_first_gate_direction = self.gates[0].position - RacePlanner.HOME_SETPOINT.position
+        home_to_first_gate_yaw = np.atan2(home_to_first_gate_direction.y, home_to_first_gate_direction.x)
+        self.waypoints.append(Setpoint(RacePlanner.HOME_SETPOINT.position, home_to_first_gate_yaw))
+
+        # Append all gates twice (2 laps) with two points on either end of each gate
+        for _ in range(2):
+            for gate in self.gates:
+                normal = glm.vec3(
+                    RacePlanner.APPROACH_DIST * np.cos(gate.yaw),
+                    RacePlanner.APPROACH_DIST * np.sin(gate.yaw),
+                    0.0
+                )
+                self.waypoints.append(Setpoint(gate.position - normal, gate.yaw))
+                self.waypoints.append(Setpoint(gate.position + normal, gate.yaw))
+
+        # Return to home position at the end
+        self.waypoints.append(RacePlanner.HOME_SETPOINT)
         
     def reach_next_wp(self, measurement: Measurement) -> tuple[Setpoint, bool]:
 
@@ -93,6 +99,5 @@ class RacePlanner(Planner):
             return setpoint
         
         # When reached, call this function recursively to get next setpoint
-        else:
-            self.waypoints.pop(0)
-            return self.update(measurement, frame, flags, dt)
+        self.waypoints.pop(0)
+        return self.update(measurement, frame, flags, dt)
