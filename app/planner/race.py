@@ -11,19 +11,13 @@ from app.telemetry import TelemetryFlags
 
 class RacePlanner(Planner):
 
-    HOME_SETPOINT   = Setpoint(glm.vec3(-1.0, 0.0, 1.0), 0.0)
     GATES_DIRECTORY = "gates"
-    
-    APPROACH_DIST   = 0.20          # m
-
-    POS_TOL         = 0.05          # m
-    YAW_TOL         = np.pi / 12    # radians
 
     def __init__(self):
-        self.waypoints: list[Setpoint]  = []
-        self.gates: list[Setpoint]      = []
+        super().__init__()
 
-    def reload_gates(self) -> None:
+    @overrides
+    def reload(self) -> None:
 
         # Take first file found in gates directory
         gates_directory = os.path.join(RacePlanner.GATES_DIRECTORY)
@@ -57,34 +51,6 @@ class RacePlanner(Planner):
 
         # Return to home position at the end
         self.waypoints.append(RacePlanner.HOME_SETPOINT)
-        
-    def reach_next_wp(self, measurement: Measurement) -> tuple[Setpoint, bool]:
-
-        # Compute position error
-        setpoint = self.waypoints[0]
-        error: glm.vec3 = setpoint.position - measurement.position
-        dist_xy = glm.length(error.xy)
-
-        # Compute error direction
-        target_heading: float = np.atan2(error.y, error.x)
-        heading_error: float = np.abs(wrap(target_heading - measurement.rotation.z))
-
-        # Align heading before moving
-        if dist_xy > 1.0 and heading_error > RacePlanner.YAW_TOL:
-            return Setpoint(measurement.position, target_heading), False
-
-        # Advance toward target
-        direction   = glm.normalize(error.xy) if dist_xy > 1.0 else error.xy
-        position    = glm.vec3(measurement.position.xy + direction, setpoint.position.z)
-        loc_reached = dist_xy < RacePlanner.POS_TOL
-        if not loc_reached:
-            return Setpoint(position, target_heading), False
-
-        # Correct yaw once on target
-        pos_reached = glm.length(error) < RacePlanner.POS_TOL
-        yaw_reached = np.abs(wrap(measurement.rotation.z - setpoint.yaw)) < RacePlanner.YAW_TOL
-        reached     = pos_reached and yaw_reached
-        return setpoint, reached
 
     @overrides
     def update(self, measurement: Measurement, frame: MatLike, flags: TelemetryFlags, dt: float) -> Setpoint:
@@ -94,7 +60,7 @@ class RacePlanner(Planner):
             return RacePlanner.HOME_SETPOINT
         
         # Until waypoint is reached, return interpolated setpoint
-        setpoint, reached = self.reach_next_wp(measurement)
+        setpoint, reached = Planner.reach(self.waypoints[0], measurement)
         if not reached:
             return setpoint
         

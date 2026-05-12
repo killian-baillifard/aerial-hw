@@ -37,6 +37,7 @@ class App:
         self.gui.planner_selected_event     += self.planner_selected_event_handler
         self.telemetry.connected_event      += self.gui.connected
         self.telemetry.disconnected_event   += self.gui.disconnected
+        self.scan_planner.gate_found_event  += self.gui.layout.scene.add_gate
 
     def tkof_event_handler(self) -> None:
         self.flight_status = FlightStatus.TKOF
@@ -48,10 +49,14 @@ class App:
         self.telemetry.z = self.telemetry.measurement.read().position.z
 
     def planner_selected_event_handler(self, stage: PlanStage) -> None:
+        self.gui.layout.scene.gates.clear()
         match stage:
+            case PlanStage.SCAN:
+                self.scan_planner.reload()
             case PlanStage.RACE:
-                self.race_planner.reload_gates()
-                self.gui.layout.scene.set_gates(self.race_planner.gates)
+                self.race_planner.reload()
+                for gate in self.race_planner.gates:
+                    self.gui.layout.scene.add_gate(gate)
 
     def run(self) -> None:
         quit: bool      = False

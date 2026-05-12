@@ -60,47 +60,36 @@ class Scene(Widget):
         # Create empty lines to draw
         self.lines_to_draw: list[Line] = []
 
-    def set_gates(self, gates: list[Setpoint]):
-        self.gates.clear()
-        
-        hw = Scene.GATE_WIDTH / 2
-        hh = Scene.GATE_HEIGHT / 2
+    def add_gate(self, gate: Setpoint):
 
-        for gate in gates:
-            # 1. Define local vertices for the gate frame
-            # (Assuming gate.position.z is the center height of the gate)
-            local_vertices = [
-                glm.vec3(0.0, -hw, -hh), # 0: Bottom Left
-                glm.vec3(0.0, -hw, +hh), # 1: Top Left
-                glm.vec3(0.0, +hw, +hh), # 2: Top Right
-                glm.vec3(0.0, +hw, -hh)  # 3: Bottom Right
-            ]
+        # Create vertices
+        local_vertices = [
+            glm.vec3(0.0, -Scene.GATE_WIDTH / 2, -Scene.GATE_HEIGHT / 2), # 0: Bottom Left
+            glm.vec3(0.0, -Scene.GATE_WIDTH / 2, +Scene.GATE_HEIGHT / 2), # 1: Top Left
+            glm.vec3(0.0, +Scene.GATE_WIDTH / 2, +Scene.GATE_HEIGHT / 2), # 2: Top Right
+            glm.vec3(0.0, +Scene.GATE_WIDTH / 2, -Scene.GATE_HEIGHT / 2)  # 3: Bottom Right
+        ]
 
-            # 2. Setup Rotation
-            rotation = glm.rotate(glm.mat4(1.0), gate.yaw, glm.vec3(0, 0, 1))
+        # Rotate vertices
+        rotation = glm.rotate(glm.mat4(1.0), gate.yaw, glm.vec3(0, 0, 1))
+        world_vertices = []
+        for v in local_vertices:
+            transformed = glm.vec3(rotation * glm.vec4(v, 1.0)) + gate.position
+            world_vertices.append(transformed)
 
-            # 3. Transform gate frame vertices to world space
-            world_vertices = []
-            for v in local_vertices:
-                transformed = glm.vec3(rotation * glm.vec4(v, 1.0)) + gate.position
-                world_vertices.append(transformed)
+        # Add poles base
+        ground_left = glm.vec3(world_vertices[0].x, world_vertices[0].y, 0.0)
+        ground_right = glm.vec3(world_vertices[3].x, world_vertices[3].y, 0.0)
+        world_vertices.append(ground_left)
+        world_vertices.append(ground_right)
 
-            # 4. Create Ground Points (Poles)
-            # We take the XY of the transformed bottom corners (0 and 3) but set Z to 0
-            ground_left = glm.vec3(world_vertices[0].x, world_vertices[0].y, 0.0)
-            ground_right = glm.vec3(world_vertices[3].x, world_vertices[3].y, 0.0)
-            
-            world_vertices.append(ground_left)  # Index 4
-            world_vertices.append(ground_right) # Index 5
-
-            # 5. Define edges: 4 for the gate square + 2 for the vertical poles
-            indices = [
-                (0, 1), (1, 2), (2, 3), (3, 0), # Gate frame
-                (0, 4),                         # Left Pole
-                (3, 5)                          # Right Pole
-            ]
-
-            self.gates.append(Mesh(world_vertices, indices))
+        # Defines indices (gate + poles)
+        indices = [
+            (0, 1), (1, 2), (2, 3), (3, 0),
+            (0, 4),
+            (3, 5)
+        ]
+        self.gates.append(Mesh(world_vertices, indices))            
 
     def set_view(self, position: glm.vec3, rotation: glm.vec3):
         view_matrix = view(position, euler_to_quaternion(rotation))
