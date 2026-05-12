@@ -147,8 +147,9 @@ class SpeedController:
                     0.5,
                     0.0,
                 ])
-                for wp in self.trajectory:
-                    self.setpoint_queue.put(wp)
+                for _ in range(2):
+                    for wp in self.trajectory:
+                        self.setpoint_queue.put(wp)
                 self.setpoint_queue.put([
                     self.starting_position[0],
                     self.starting_position[1],

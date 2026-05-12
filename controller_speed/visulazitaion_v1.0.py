@@ -14,7 +14,6 @@ ROOM_Y = 2.95          # sheet horizontal direction, world Y
 ROOM_Z = 2.40          # useful plotting height
 
 CENTER   = np.array([ROOM_X / 2, ROOM_Y / 2], dtype=float)
-HOME_XY  = np.array([0.35, ROOM_Y / 2], dtype=float)
 HOME_Z   = 0.10
 
 # =========================
@@ -22,20 +21,20 @@ HOME_Z   = 0.10
 # =========================
 # 12 sectors of 30 deg. Home = 3 sectors = 90 deg.
 HOME_HALF_ANGLE_DEG  = 45.0
-GATE_ZONE_CENTERS_DEG = [-120, -60, 0, 60, 120]
-OUTER_RADIUS = 0.43 * min(ROOM_X, ROOM_Y)
 
-FRAME_WIDTH = 0.01      # gate frame width [m]
+FRAME_WIDTH = 0.08      # gate frame width [m]
 GATE_HEIGHT = 0.40      # inner opening height [m] (same for all gates)
 WALL_CLEARANCE = 0.04
 
 APPROACH_DIST = 0.20    # [m] waypoint offset from gate center on each side
 
 # Position of drone (0,0,0) in room world coordinates [m].
-# From sketch:  X = ROOM_X − 1.64       (164 cm from top wall → 123 cm from bottom)
-#               Y = ROOM_Y − 2.01 + 0.165  (201 cm from right wall + 16.5 cm offset)
-# Adjust these two numbers if gates still look misaligned.
-DRONE_ORIGIN_XY = np.array([ROOM_X - 1.64, ROOM_Y - 2.01 + 0.165])
+# From sketch:  X = ROOM_X − 1.64       (164 cm from top wall → 1.23 m from bottom)
+#               Y = 2.01 + 0.165         (201 cm from left wall + 16.5 cm Lighthouse offset)
+DRONE_ORIGIN_XY = np.array([ROOM_X - 1.64, 2.01 + 0.165])
+
+# Home pad: drone HOME_SETPOINT = (−1.0, 0.0, 1.0) in drone frame → 100 cm behind origin
+HOME_XY = np.array([DRONE_ORIGIN_XY[0] - 1.0, DRONE_ORIGIN_XY[1]], dtype=float)
 
 # =========================
 # Gate sizes (competition standard)
@@ -170,12 +169,13 @@ def build_trajectory_room_coords(poses: np.ndarray) -> np.ndarray:
     Returns (n_gates * 2, 3) array of [x_room, y_room, z].
     """
     wps = [[HOME_XY[0], HOME_XY[1], 0.5]]   # start at home
-    for x, y, z, yaw, _ in poses:
-        dx, dy = np.cos(yaw), np.sin(yaw)
-        wps.append([x - APPROACH_DIST * dx + DRONE_ORIGIN_XY[0],
-                    y - APPROACH_DIST * dy + DRONE_ORIGIN_XY[1], z])
-        wps.append([x + APPROACH_DIST * dx + DRONE_ORIGIN_XY[0],
-                    y + APPROACH_DIST * dy + DRONE_ORIGIN_XY[1], z])
+    for _ in range(2):
+        for x, y, z, yaw, _ in poses:
+            dx, dy = np.cos(yaw), np.sin(yaw)
+            wps.append([x - APPROACH_DIST * dx + DRONE_ORIGIN_XY[0],
+                        y - APPROACH_DIST * dy + DRONE_ORIGIN_XY[1], z])
+            wps.append([x + APPROACH_DIST * dx + DRONE_ORIGIN_XY[0],
+                        y + APPROACH_DIST * dy + DRONE_ORIGIN_XY[1], z])
     # Final waypoint: return home at flying height
     wps.append([HOME_XY[0], HOME_XY[1], 0.5])
     return np.array(wps)
@@ -245,47 +245,80 @@ def draw_room_3d(ax):
 
 def draw_sector_guides_2d(ax):
     c = sheet_xy(CENTER)
-
-    for d in np.arange(-180, 180, 30):
-        end = ray_to_wall(CENTER, uvec(np.deg2rad(d)))
-        e = sheet_xy(end)
-        ax.plot([c[0], e[0]], [c[1], e[1]], color=(0.78, 0.78, 0.95), lw=1.2)
-
     home_angle = np.arctan2(HOME_XY[1] - CENTER[1], HOME_XY[0] - CENTER[0])
-    angles = np.linspace(
-        home_angle - np.deg2rad(HOME_HALF_ANGLE_DEG),
-        home_angle + np.deg2rad(HOME_HALF_ANGLE_DEG),
-        20,
-    )
-    wedge = [CENTER] + [ray_to_wall(CENTER, uvec(a)) for a in angles] + [CENTER]
-    ws = np.array([sheet_xy(p) for p in wedge])
-    ax.fill(ws[:, 0], ws[:, 1], color="#8CBDF2", alpha=0.25, label="Home section, 3×30°")
+    home_start = home_angle - np.deg2rad(HOME_HALF_ANGLE_DEG)
+    home_end   = home_angle + np.deg2rad(HOME_HALF_ANGLE_DEG)
 
-    for i, zd in enumerate(GATE_ZONE_CENTERS_DEG, start=1):
-        p = CENTER + 0.75 * OUTER_RADIUS * uvec(np.deg2rad(zd))
-        ps = sheet_xy(p)
-        ax.text(ps[0], ps[1], f"zone {i}", color="0.45", fontsize=8, ha="center")
+    # Home zone (blue, 90°)
+    angles_home = np.linspace(home_start, home_end, 30)
+    wedge = [CENTER] + [ray_to_wall(CENTER, uvec(a)) for a in angles_home] + [CENTER]
+    ws = np.array([sheet_xy(p) for p in wedge])
+    ax.fill(ws[:, 0], ws[:, 1], color="#8CBDF2", alpha=0.35, zorder=1, label="Home zone (90°)")
+
+    # 9 alternating zones after home: gate (even k=0,2,4,6,8) and no-gate (odd k=1,3,5,7)
+    gate_num = 1
+    for k in range(9):
+        zone_start = home_end + k * np.deg2rad(30)
+        zone_end   = zone_start + np.deg2rad(30)
+        zone_mid   = (zone_start + zone_end) / 2
+        is_gate    = (k % 2 == 0)
+
+        angles_zone = np.linspace(zone_start, zone_end, 10)
+        wedge = [CENTER] + [ray_to_wall(CENTER, uvec(a)) for a in angles_zone] + [CENTER]
+        ws = np.array([sheet_xy(p) for p in wedge])
+
+        if is_gate:
+            # Gate zones: white (no fill) — label at outer wall edge
+            wall_pt = ray_to_wall(CENTER, uvec(zone_mid))
+            text_pos = CENTER + 0.88 * (wall_pt - CENTER)
+            tps = sheet_xy(text_pos)
+            ax.text(tps[0], tps[1], f"gate {gate_num}",
+                    color="0.35", fontsize=8, ha="center", va="center", zorder=3)
+            gate_num += 1
+        else:
+            # No-gate zones: light grey fill
+            ax.fill(ws[:, 0], ws[:, 1], color="#C8C8C8", alpha=0.45, zorder=1)
+
+    # Spoke lines aligned to home boundary, every 30°
+    for k in range(12):
+        angle = home_end + k * np.deg2rad(30)
+        end = ray_to_wall(CENTER, uvec(angle))
+        e = sheet_xy(end)
+        ax.plot([c[0], e[0]], [c[1], e[1]], color=(0.78, 0.78, 0.95), lw=1.2, zorder=2)
 
 
 def draw_sector_guides_3d(ax):
     c = sheet_xyz([CENTER[0], CENTER[1], 0])
-
-    for d in np.arange(-180, 180, 30):
-        end = ray_to_wall(CENTER, uvec(np.deg2rad(d)))
-        e = sheet_xyz([end[0], end[1], 0])
-        ax.plot([c[0], e[0]], [c[1], e[1]], [0, 0], color=(0.78, 0.78, 0.95), lw=1.2)
-
     home_angle = np.arctan2(HOME_XY[1] - CENTER[1], HOME_XY[0] - CENTER[0])
-    angles = np.linspace(
-        home_angle - np.deg2rad(HOME_HALF_ANGLE_DEG),
-        home_angle + np.deg2rad(HOME_HALF_ANGLE_DEG),
-        20,
-    )
+    home_start = home_angle - np.deg2rad(HOME_HALF_ANGLE_DEG)
+    home_end   = home_angle + np.deg2rad(HOME_HALF_ANGLE_DEG)
+
+    # Home zone (blue)
+    angles_home = np.linspace(home_start, home_end, 30)
     wedge = [[CENTER[0], CENTER[1], 0]]
-    wedge += [[*ray_to_wall(CENTER, uvec(a)), 0] for a in angles]
+    wedge += [[*ray_to_wall(CENTER, uvec(a)), 0] for a in angles_home]
     wedge += [[CENTER[0], CENTER[1], 0]]
     ws = np.array([sheet_xyz(p) for p in wedge])
     ax.add_collection3d(Poly3DCollection([ws], facecolor="#8CBDF2", edgecolor="none", alpha=0.25))
+
+    # No-gate zones: light grey
+    for k in range(9):
+        if k % 2 != 0:
+            zone_start = home_end + k * np.deg2rad(30)
+            zone_end   = zone_start + np.deg2rad(30)
+            angles_zone = np.linspace(zone_start, zone_end, 10)
+            wdg = [[CENTER[0], CENTER[1], 0]]
+            wdg += [[*ray_to_wall(CENTER, uvec(a)), 0] for a in angles_zone]
+            wdg += [[CENTER[0], CENTER[1], 0]]
+            ws_z = np.array([sheet_xyz(p) for p in wdg])
+            ax.add_collection3d(Poly3DCollection([ws_z], facecolor="#C8C8C8", edgecolor="none", alpha=0.25))
+
+    # Spokes aligned to home boundary, every 30°
+    for k in range(12):
+        angle = home_end + k * np.deg2rad(30)
+        end = ray_to_wall(CENTER, uvec(angle))
+        e = sheet_xyz([end[0], end[1], 0])
+        ax.plot([c[0], e[0]], [c[1], e[1]], [0, 0], color=(0.78, 0.78, 0.95), lw=1.2)
 
 
 def draw_gate_3d(ax, g):
@@ -352,8 +385,17 @@ def plot_arena(gates, trajectory_wps: np.ndarray = None):
     draw_sector_guides_3d(ax3d)
 
     ax3d.scatter(*sheet_xyz([CENTER[0], CENTER[1], 0]), color="gray", s=25)
-    ax3d.scatter(*sheet_xyz([HOME_XY[0], HOME_XY[1], HOME_Z]),
-                 color="orange", marker="s", s=70, label="Home / take-off")
+    _half = 0.15
+    _home3d = np.array([
+        [HOME_XY[0]-_half, HOME_XY[1]-_half, 0],
+        [HOME_XY[0]+_half, HOME_XY[1]-_half, 0],
+        [HOME_XY[0]+_half, HOME_XY[1]+_half, 0],
+        [HOME_XY[0]-_half, HOME_XY[1]+_half, 0],
+    ])
+    _h3s = np.array([sheet_xyz(p) for p in _home3d])
+    ax3d.add_collection3d(Poly3DCollection([_h3s], facecolor="orange", edgecolor="darkorange", alpha=0.75))
+    ax3d.scatter(*sheet_xyz([HOME_XY[0], HOME_XY[1], 0.01]),
+                 color="orange", s=1, label="Home pad (30×30 cm)")
 
     for g in gates:
         draw_gate_3d(ax3d, g)
@@ -378,8 +420,18 @@ def plot_arena(gates, trajectory_wps: np.ndarray = None):
     draw_sector_guides_2d(ax2d)
 
     ax2d.scatter(*sheet_xy(CENTER), color="gray", s=25, zorder=4)
-    ax2d.scatter(*sheet_xy(HOME_XY), color="orange", marker="s", s=70,
-                 zorder=5, label="Home / take-off")
+    _half = 0.15
+    _home2d = np.array([
+        [HOME_XY[0]-_half, HOME_XY[1]-_half],
+        [HOME_XY[0]+_half, HOME_XY[1]-_half],
+        [HOME_XY[0]+_half, HOME_XY[1]+_half],
+        [HOME_XY[0]-_half, HOME_XY[1]+_half],
+    ])
+    _h2s = np.array([sheet_xy(p) for p in _home2d])
+    ax2d.fill(_h2s[:, 0], _h2s[:, 1], color="orange", alpha=0.75, zorder=5, label="Home pad (30×30 cm)")
+    ax2d.plot(np.append(_h2s[:, 0], _h2s[0, 0]),
+              np.append(_h2s[:, 1], _h2s[0, 1]),
+              color="darkorange", lw=1.5, zorder=5)
 
     for g in gates:
         draw_gate_2d(ax2d, g)
