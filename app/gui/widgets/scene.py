@@ -11,7 +11,7 @@ class Scene(Widget):
 
     DEPTH: float    = 4.05
     WIDTH: float    = 2.87
-    HEIGHT: float   = 2.0
+    HEIGHT: float   = 2.4
     COLOR = (6, 206, 0, 255)
 
     def __init__(self, position: glm.uvec2, size: glm.uvec2, z_index: int = 0) -> None:

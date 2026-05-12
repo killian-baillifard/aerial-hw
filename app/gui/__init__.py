@@ -16,7 +16,6 @@ class Gui:
 
     CLEAR_COLOR = (30, 30, 30)
     JOYSTICKS_LEN = 200
-    PICTH_DISPLACEMENT = 250
 
     def __init__(self) -> None:
 
@@ -71,7 +70,7 @@ class Gui:
         self.layout.z_indicator.set_text(f"[Z = {measurement.position.z:.3f} m]")
         self.layout.yaw_indicator.set_text(f"[YAW = {np.rad2deg(measurement.rotation.z):.3f} °]")
         self.layout.roll_indicator.set_roll(-measurement.rotation.x)
-        self.layout.pitch_indicator.set_pitch(-measurement.rotation.y * Gui.PICTH_DISPLACEMENT)
+        self.layout.pitch_indicator.set_pitch(-measurement.rotation.y)
         self.layout.batt_indicator.set_text(f"[BATT = {int(100 * measurement.battery):d} %]")
         self.layout.batt_gauge.set_progress(measurement.battery)
         self.layout.scene.set_view(measurement.position, measurement.rotation)

@@ -51,7 +51,7 @@ class Layout:
         self.yaw_joystick = Joystick(glm.uvec2(Layout.IMAGE_CENTER.x, Layout.TOP_BAR + Layout.WINDOW_HEIGHT), glm.ivec2(0, 0), z_index=2)
         _ = Label(glm.uvec2(Layout.IMAGE_CENTER.x - Layout.MARGIN - 7, Layout.TOP_BAR + Layout.WINDOW_HEIGHT - 3 * Layout.MARGIN), "YAW", z_index=2)
         self.roll_indicator = Roll(Layout.IMAGE_CENTER, 0.0, z_index=2)
-        self.pitch_indicator = Pitch(Layout.IMAGE_CENTER, 0.0, z_index=2)
+        self.pitch_indicator = Pitch(Layout.IMAGE_CENTER, 0.0, Layout.WINDOW_HEIGHT, z_index=2)
         self.shutter_indicator = Shutter(Layout.IMAGE_CENTER, glm.uvec2(Layout.IMAGE_CENTER.x - Layout.MARGIN, Layout.WINDOW_HEIGHT / 2 - Layout.MARGIN), z_index=2)
 
         # Bottom bar

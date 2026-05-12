@@ -36,6 +36,8 @@ class Setpoint:
 class Measurement:
 
     BATT_SIM_DECAY_RATE = 0.005
+    SIM_ROLL_AMPLITUDE = np.pi / 16
+    SIM_PITCH_AMPLITUDE = np.pi / 16
 
     def __init__(self, timestamp: float = 0.0, position: glm.vec3 = glm.vec3(0.0), rotation: glm.vec3 = glm.vec3(0.0), battery: float = 1.0) -> None:
         self.timestamp: float = timestamp
@@ -71,8 +73,8 @@ class Measurement:
             self.timestamp + dt,
             p,
             glm.vec3(
-                -command.velocity.y * (np.pi / 16.0),
-                command.velocity.x * (np.pi / 16.0),
+                -command.velocity.y * Measurement.SIM_ROLL_AMPLITUDE,
+                command.velocity.x * Measurement.SIM_PITCH_AMPLITUDE,
                 wrap(self.rotation.z + command.yaw_rate * dt)
             ),
             np.clip(self.battery - Measurement.BATT_SIM_DECAY_RATE * dt, 0.0, 1.0)

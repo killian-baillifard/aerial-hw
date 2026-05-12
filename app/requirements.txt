@@ -3,3 +3,5 @@ numpy
 pyglm
 pygame
 opencv-python
+matplotlib
+ultralytics
