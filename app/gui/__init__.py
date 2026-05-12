@@ -39,7 +39,8 @@ class Gui:
         self.land_event: Event = Event()
         self.start_recording_event: Event = Event()
         self.stop_recording_event: Event = Event()
-        self.manual_controls_event: Event = Event()
+        self.manual_cmd_selected_event: Event[CommandSource] = Event[CommandSource]()
+        self.planner_selected_event: Event[PlanStage] = Event[PlanStage]()
 
         # Register event listeners
         self.layout.link_btn.release_event      += self.link_btn_click_handler
@@ -54,8 +55,8 @@ class Gui:
         self.lock = Lock()
         self.link = Link.SIMULATION
         self.control_mode = ControlMode.MANUAL
-        self.input_source = CommandSource.CONTROLLER
-        self.lap_type = PlanStage.SCAN
+        self.command_source = CommandSource.CONTROLLER
+        self.plan_stage = PlanStage.SCAN
 
     def update_command_indicators(self, command: Command) -> None:
         self.layout.xy_joystick.set_delta(glm.ivec2(-command.velocity.y * Gui.JOYSTICKS_LEN, -command.velocity.x * Gui.JOYSTICKS_LEN))
@@ -119,14 +120,16 @@ class Gui:
         match self.control_mode:
             case ControlMode.MANUAL:
                 self.layout.ctrl_btn.set_text("CTRL [MAN]")
-                match self.input_source:
+                self.manual_cmd_selected_event(self.command_source)
+                match self.command_source:
                     case CommandSource.KEYBOARD:
                         self.layout.source_btn.set_text("KEYBOARD")
                     case CommandSource.CONTROLLER:
                         self.layout.source_btn.set_text("CONTROLLER")
             case ControlMode.PLANNER:
                 self.layout.ctrl_btn.set_text("CTRL [PLAN]")
-                match self.lap_type:
+                self.planner_selected_event(self.plan_stage)
+                match self.plan_stage:
                     case PlanStage.SCAN:
                         self.layout.source_btn.set_text("STAGE [SCAN]")
                     case PlanStage.RACE:
@@ -139,24 +142,23 @@ class Gui:
                 self.control_mode = ControlMode.PLANNER
             case ControlMode.PLANNER:
                 self.control_mode = ControlMode.MANUAL
-                self.manual_controls_event()
         self.update_control_mode()
 
     def source_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
         match self.control_mode:
             case ControlMode.MANUAL:
-                match self.input_source:
+                match self.command_source:
                     case CommandSource.KEYBOARD:
-                        self.input_source = CommandSource.CONTROLLER
+                        self.command_source = CommandSource.CONTROLLER
                     case CommandSource.CONTROLLER:
-                        self.input_source = CommandSource.KEYBOARD
+                        self.command_source = CommandSource.KEYBOARD
             case ControlMode.PLANNER:
-                match self.lap_type:
+                match self.plan_stage:
                     case PlanStage.SCAN:
-                        self.lap_type = PlanStage.RACE
+                        self.plan_stage = PlanStage.RACE
                     case PlanStage.RACE:
-                        self.lap_type = PlanStage.SCAN
+                        self.plan_stage = PlanStage.SCAN
         self.update_control_mode()
 
     def con_btn_click_handler(self) -> None:

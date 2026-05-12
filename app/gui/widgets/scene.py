@@ -5,13 +5,16 @@ from pyglm import glm
 from pygame import Surface, draw
 from overrides import override
 from app.gui.widgets import Widget
+from app.io import Setpoint
 from app.telemetry.camera import Line, Mesh, view, euler_to_quaternion, WIDTH as CAM_W, HEIGHT as CAM_H
 
 class Scene(Widget):
 
-    DEPTH: float    = 4.05
-    WIDTH: float    = 2.87
-    HEIGHT: float   = 2.4
+    DEPTH: float        = 4.05  # m
+    WIDTH: float        = 2.87  # m
+    HEIGHT: float       = 2.4   # m
+    GATE_WIDTH: float   = 0.4   # m
+    GATE_HEIGHT: float  = 0.4   # m
     COLOR = (6, 206, 0, 255)
 
     def __init__(self, position: glm.uvec2, size: glm.uvec2, z_index: int = 0) -> None:
@@ -51,13 +54,60 @@ class Scene(Widget):
             sectors_indices.append((0, i + 1))
         self.sectors = Mesh(sectors_vertices, sectors_indices)
 
+        # Create empty gates
+        self.gates: list[Mesh] = []
+
         # Create empty lines to draw
         self.lines_to_draw: list[Line] = []
+
+    def set_gates(self, gates: list[Setpoint]):
+        self.gates.clear()
+        
+        hw = Scene.GATE_WIDTH / 2
+        hh = Scene.GATE_HEIGHT / 2
+
+        for gate in gates:
+            # 1. Define local vertices for the gate frame
+            # (Assuming gate.position.z is the center height of the gate)
+            local_vertices = [
+                glm.vec3(0.0, -hw, -hh), # 0: Bottom Left
+                glm.vec3(0.0, -hw, +hh), # 1: Top Left
+                glm.vec3(0.0, +hw, +hh), # 2: Top Right
+                glm.vec3(0.0, +hw, -hh)  # 3: Bottom Right
+            ]
+
+            # 2. Setup Rotation
+            rotation = glm.rotate(glm.mat4(1.0), gate.yaw, glm.vec3(0, 0, 1))
+
+            # 3. Transform gate frame vertices to world space
+            world_vertices = []
+            for v in local_vertices:
+                transformed = glm.vec3(rotation * glm.vec4(v, 1.0)) + gate.position
+                world_vertices.append(transformed)
+
+            # 4. Create Ground Points (Poles)
+            # We take the XY of the transformed bottom corners (0 and 3) but set Z to 0
+            ground_left = glm.vec3(world_vertices[0].x, world_vertices[0].y, 0.0)
+            ground_right = glm.vec3(world_vertices[3].x, world_vertices[3].y, 0.0)
+            
+            world_vertices.append(ground_left)  # Index 4
+            world_vertices.append(ground_right) # Index 5
+
+            # 5. Define edges: 4 for the gate square + 2 for the vertical poles
+            indices = [
+                (0, 1), (1, 2), (2, 3), (3, 0), # Gate frame
+                (0, 4),                         # Left Pole
+                (3, 5)                          # Right Pole
+            ]
+
+            self.gates.append(Mesh(world_vertices, indices))
 
     def set_view(self, position: glm.vec3, rotation: glm.vec3):
         view_matrix = view(position, euler_to_quaternion(rotation))
         self.lines_to_draw.clear()
         self.lines_to_draw = self.room.project(view_matrix) + self.sectors.project(view_matrix)
+        for gate_mesh in self.gates:
+            self.lines_to_draw += gate_mesh.project(view_matrix)
 
     @override
     def draw(self, surface: Surface) -> None:

@@ -5,7 +5,8 @@ from app.io import Command
 from app.io.controller import Controller
 from app.io.keyboard import Keyboard
 from app.telemetry import Telemetry, TelemetryFlags
-from app.planner.example import ExamplePlanner
+from app.planner.scan import ScanPlanner
+from app.planner.race import RacePlanner
 from app.telemetry.recorder import Recorder
 
 class App:
@@ -21,8 +22,8 @@ class App:
         self.keyboard       = Keyboard()
         self.telemetry      = Telemetry(self.gui.layout.scene.overlay)
         self.recorder       = Recorder()
-        self.scan_planner   = ExamplePlanner()
-        self.race_planner   = ExamplePlanner()
+        self.scan_planner   = ScanPlanner()
+        self.race_planner   = RacePlanner()
         self.flight_status  = FlightStatus.LANDED
 
         # Initialize event handlers
@@ -32,7 +33,8 @@ class App:
         self.gui.land_event                 += self.land_event_handler
         self.gui.start_recording_event      += self.recorder.start_recording
         self.gui.stop_recording_event       += self.recorder.stop_recording
-        self.gui.manual_controls_event      += self.manual_controls_event_handler
+        self.gui.manual_cmd_selected_event  += self.manual_cmd_selected_event_handler
+        self.gui.planner_selected_event     += self.planner_selected_event_handler
         self.telemetry.connected_event      += self.gui.connected
         self.telemetry.disconnected_event   += self.gui.disconnected
 
@@ -42,8 +44,14 @@ class App:
     def land_event_handler(self) -> None:
         self.flight_status = FlightStatus.LAND
 
-    def manual_controls_event_handler(self) -> None:
+    def manual_cmd_selected_event_handler(self, source: CommandSource) -> None:
         self.telemetry.z = self.telemetry.measurement.read().position.z
+
+    def planner_selected_event_handler(self, stage: PlanStage) -> None:
+        match stage:
+            case PlanStage.RACE:
+                self.race_planner.reload_gates()
+                self.gui.layout.scene.set_gates(self.race_planner.gates)
 
     def run(self) -> None:
         quit: bool      = False
@@ -85,7 +93,7 @@ class App:
                 case FlightStatus.AIRBORN:
                     match self.gui.control_mode:
                         case ControlMode.MANUAL:
-                            match self.gui.input_source:
+                            match self.gui.command_source:
                                 case CommandSource.KEYBOARD:
                                     self.keyboard.update(dt)
                                     self.telemetry.send_command(self.keyboard, dt)
@@ -93,7 +101,7 @@ class App:
                                     self.controller.update(dt)
                                     self.telemetry.send_command(self.controller, dt)
                         case ControlMode.PLANNER:
-                            match self.gui.lap_type:
+                            match self.gui.plan_stage:
                                 case PlanStage.SCAN:
                                         self.telemetry.send_setpoint(self.scan_planner.update(measurement, frame, flags, dt), dt)
                                 case PlanStage.RACE:

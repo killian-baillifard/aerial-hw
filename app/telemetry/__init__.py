@@ -32,6 +32,7 @@ class Telemetry(Thread):
     TKOF_HEIGHT     = 1.0   # m
     LAND_HEIGHT     = 0.1   # m
     TOLERANCE       = 0.05  # m
+    MIN_HEIGHT      = 0.05  # m
 
     def __init__(self, sim_overlay_func: Callable[[MatLike], None]) -> None:
         super().__init__(name='Telemetry', daemon=True)
@@ -152,7 +153,6 @@ class Telemetry(Thread):
         self.frame.set(frame)
 
     def tkof(self, dt: float) -> bool:
-        
         dz = Telemetry.TKOF_HEIGHT - self.measurement.read().position.z
         airborn = np.abs(dz) < Telemetry.TOLERANCE
         self.command = Command(glm.vec3(0.0, 0.0, np.clip(dz, -1.0, 1.0)))
@@ -162,11 +162,9 @@ class Telemetry(Thread):
                         self.simulate_crazyflie(dt)
                 case Link.WIFI | Link.RADIO:
                         self.crazyflie.commander.send_zdistance_setpoint(0.0, 0.0, 0.0, Telemetry.TKOF_HEIGHT)
-        
         return airborn
 
     def land(self, dt: float) -> bool:
-
         dz = Telemetry.LAND_HEIGHT - self.measurement.read().position.z
         landed = np.abs(dz) < Telemetry.TOLERANCE
         self.command = Command(glm.vec3(0.0, 0.0, np.clip(dz, -1.0, 1.0)))
@@ -181,7 +179,6 @@ class Telemetry(Thread):
                     self.crazyflie.commander.send_zdistance_setpoint(0.0, 0.0, 0.0, Telemetry.LAND_HEIGHT)
                 else:
                     self.crazyflie.commander.send_stop_setpoint()
-
         return landed
     
     def send_command(self, command: Command, dt: float) -> None:
@@ -191,14 +188,19 @@ class Telemetry(Thread):
                 case Link.SIMULATION:
                     self.simulate_crazyflie(dt)
                 case Link.WIFI | Link.RADIO:
+                    self.z += self.command.velocity.z * dt
+                    if(self.z < Telemetry.MIN_HEIGHT):
+                        self.z = Telemetry.MIN_HEIGHT
                     self.crazyflie.commander.send_hover_setpoint(
                         command.velocity.x,
                         command.velocity.y,
                         np.rad2deg(command.yaw_rate),
-                        self.z + self.command.velocity.z * dt
+                        self.z
                     )
         
     def send_setpoint(self, setpoint: Setpoint, dt: float) -> None:
+        if(setpoint.position.z < Telemetry.MIN_HEIGHT):
+            setpoint.position.z = Telemetry.MIN_HEIGHT
         self.command = setpoint.to_command(self.measurement.read())
         if self.connected.get():
             match self.link.get():

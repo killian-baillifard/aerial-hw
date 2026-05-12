@@ -6,7 +6,7 @@ from app.io import Setpoint
 from app.planner import Planner
 from app.telemetry import TelemetryFlags
 
-class ExamplePlanner(Planner):
+class ScanPlanner(Planner):
 
     TOLERANCE = 0.05 # 5 cm
 
@@ -26,7 +26,7 @@ class ExamplePlanner(Planner):
 
         if self.i < len(self.waypoints):
             setpoint = Setpoint(self.waypoints[self.i], 0.0)
-            if glm.distance(self.waypoints[self.i], measurement.position) < ExamplePlanner.TOLERANCE:
+            if glm.distance(self.waypoints[self.i], measurement.position) < ScanPlanner.TOLERANCE:
                 self.i += 1
             return setpoint
         else:
