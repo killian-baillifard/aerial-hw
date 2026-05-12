@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from dataclasses import dataclass
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-from gate_poses import load_gate_poses
+from csv_gates import load_gates_csv, GATE_SOURCE
 
 # =========================
 # Real arena dimensions [m]
@@ -26,7 +26,9 @@ FRAME_WIDTH = 0.08      # gate frame width [m]
 GATE_HEIGHT = 0.40      # inner opening height [m] (same for all gates)
 WALL_CLEARANCE = 0.04
 
-APPROACH_DIST = 0.20    # [m] waypoint offset from gate center on each side
+APPROACH_DIST  = 0.20   # [m] waypoint offset from gate center on each side
+LAND_HOVER_Z   = 0.30   # [m] height above home pad where descent begins (matches speed_controller)
+PLOT_MARGIN    = 0.50   # [m] extra whitespace around room in plots
 
 # Fixed room positions along drone +Y = room +X (chain from top wall downward):
 #   World origin  : 201 cm from top wall  → X_room = 4.05 − 2.01 = 2.04
@@ -57,10 +59,15 @@ GATE_NOMINAL_SIZES = {
     "29x40 cm": (0.29, 0.40),
 }
 
-MEASUREMENTS_NPY = os.path.join(
-    os.path.dirname(__file__), "..",
-    "saved_captures/2026-05-06-17-32-33_corner_measurements/measures.npy"
-)
+# Path to competition/lab CSV (Gate,x,y,z,theta,width,height).
+# Theta interpretation is controlled by GATE_SOURCE in csv_gates.py.
+#GATES_CSV = os.path.join(os.path.dirname(__file__), "gates_info.csv")
+GATES_CSV = os.path.join(os.path.dirname(__file__), "gates_test.csv")
+
+
+# Home pad position in drone/Lighthouse frame (room coords minus origin offset).
+# Used to resolve the yaw ambiguity of the first gate in LAB_EXAM mode.
+_HOME_DRONE_XY = tuple(HOME_XY - DRONE_ORIGIN_XY)
 
 
 @dataclass
@@ -136,35 +143,24 @@ def ray_to_wall(origin, direction):
 
 def poses_to_gates(poses: np.ndarray) -> list:
     """
-    Convert gate_poses array (n_gates, 5) to a list of Gate objects.
-
-    Gates are ranked by their measured width (column 4) to assign size labels:
-      rank 1 (widest) → "50x40 cm"
-      ranks 2–3       → "40x40 cm"
-      ranks 4–5       → "29x40 cm"
-
-    The nominal width/height from GATE_NOMINAL_SIZES is used for rendering.
+    Convert poses array (n_gates, 6) columns [x,y,z,yaw,width,height]
+    to a list of Gate objects in room coordinates.
     """
-    n = len(poses)
-    order = np.argsort(poses[:, 4])[::-1]           # widest first
-    size_seq = ["50x40 cm"] + ["40x40 cm"] * 2 + ["29x40 cm"] * 2
-    label_by_idx = {int(order[r]): size_seq[r] for r in range(n)}
-
     gates = []
-    for i, (x, y, z, yaw, _) in enumerate(poses):
-        label = label_by_idx[i]
-        nom_w, nom_h = GATE_NOMINAL_SIZES[label]
+    for i, row in enumerate(poses):
+        x, y, z, yaw = row[:4]
+        width  = float(row[4]) if poses.shape[1] > 4 else 0.50
+        height = float(row[5]) if poses.shape[1] > 5 else 0.40
         # Drone frame -> room frame: direct translation, no rotation.
-        #   drone +X -> room +X  (up in sketch   = toward top wall  = increasing room X)
-        #   drone +Y -> room +Y  (left in sketch  = toward left wall = increasing room Y)
         x_room   = DRONE_ORIGIN_XY[0] + x
         y_room   = DRONE_ORIGIN_XY[1] + y
         yaw_room = float(yaw)
+        label    = f"{int(round(width * 100))}x{int(round(height * 100))} cm"
         gates.append(Gate(
             idx=i + 1,
             size_label=label,
-            width=nom_w,
-            height=nom_h,
+            width=width,
+            height=height,
             frame=FRAME_WIDTH,
             center=np.array([x_room, y_room, z]),
             yaw=yaw_room,
@@ -182,24 +178,24 @@ def build_trajectory_room_coords(poses: np.ndarray) -> np.ndarray:
 
     Returns (n_gates * 2, 3) array of [x_room, y_room, z].
     """
-    wps = [[HOME_XY[0], HOME_XY[1], 0.5]]   # start at home
+    wps = [[HOME_XY[0], HOME_XY[1], 0.5]]   # hover start (not a race waypoint, just origin marker)
     for _ in range(2):
-        for x, y, z, yaw, _ in poses:
+        for x, y, z, yaw, *_ in poses:
             dx, dy = np.cos(yaw), np.sin(yaw)
-            # Approach: (x - d*dx, y - d*dy) in drone frame -> room (direct translation)
             wps.append([
                 DRONE_ORIGIN_XY[0] + (x - APPROACH_DIST * dx),
                 DRONE_ORIGIN_XY[1] + (y - APPROACH_DIST * dy),
                 z
             ])
-            # Exit: (x + d*dx, y + d*dy) in drone frame -> room
             wps.append([
                 DRONE_ORIGIN_XY[0] + (x + APPROACH_DIST * dx),
                 DRONE_ORIGIN_XY[1] + (y + APPROACH_DIST * dy),
                 z
             ])
-    # Final waypoint: return home at flying height
-    wps.append([HOME_XY[0], HOME_XY[1], 0.5])
+    # Fly home horizontally at last gate's exit height, then descend over pad
+    cruise_z = float(poses[-1][2])
+    wps.append([HOME_XY[0], HOME_XY[1], cruise_z])
+    wps.append([HOME_XY[0], HOME_XY[1], LAND_HOVER_Z])
     return np.array(wps)
 
 
@@ -282,7 +278,6 @@ def draw_sector_guides_2d(ax):
     for k in range(9):
         zone_start = home_end + k * np.deg2rad(30)
         zone_end   = zone_start + np.deg2rad(30)
-        zone_mid   = (zone_start + zone_end) / 2
         is_gate    = (k % 2 == 0)
 
         angles_zone = np.linspace(zone_start, zone_end, 10)
@@ -290,12 +285,6 @@ def draw_sector_guides_2d(ax):
         ws = np.array([sheet_xy(p) for p in wedge])
 
         if is_gate:
-            # Gate zones: white (no fill) — label at outer wall edge
-            wall_pt = ray_to_wall(CENTER, uvec(zone_mid))
-            text_pos = CENTER + 0.88 * (wall_pt - CENTER)
-            tps = sheet_xy(text_pos)
-            ax.text(tps[0], tps[1], f"gate {gate_num}",
-                    color="0.35", fontsize=8, ha="center", va="center", zorder=3)
             gate_num += 1
         else:
             # No-gate zones: light grey fill
@@ -383,7 +372,8 @@ def draw_gate_2d(ax, g):
              width=0.004, head_width=0.045, head_length=0.055,
              color="green", length_includes_head=True)
 
-    ax.text(c[0] + 0.02, c[1] + 0.02, f"G{g.idx}", fontsize=10, weight="bold")
+    ax.annotate(f"G{g.idx}", xy=(c[0], c[1]), xytext=(10, 6),
+                textcoords="offset points", fontsize=10, weight="bold")
 
 
 def print_gate_table(gates):
@@ -425,8 +415,8 @@ def plot_arena(gates, trajectory_wps: np.ndarray = None):
     if trajectory_wps is not None:
         draw_trajectory_3d(ax3d, trajectory_wps)
 
-    ax3d.set_xlim(0, ROOM_Y)
-    ax3d.set_ylim(0, ROOM_X)
+    ax3d.set_xlim(-PLOT_MARGIN, ROOM_Y + PLOT_MARGIN)
+    ax3d.set_ylim(-PLOT_MARGIN, ROOM_X + PLOT_MARGIN)
     ax3d.set_zlim(0, ROOM_Z)
     ax3d.invert_xaxis()
     ax3d.set_box_aspect((ROOM_Y, ROOM_X, ROOM_Z))
@@ -461,8 +451,8 @@ def plot_arena(gates, trajectory_wps: np.ndarray = None):
     if trajectory_wps is not None:
         draw_trajectory_2d(ax2d, trajectory_wps)
 
-    ax2d.set_xlim(0, ROOM_Y)
-    ax2d.set_ylim(0, ROOM_X)
+    ax2d.set_xlim(-PLOT_MARGIN, ROOM_Y + PLOT_MARGIN)
+    ax2d.set_ylim(-PLOT_MARGIN, ROOM_X + PLOT_MARGIN)
     ax2d.invert_xaxis()
     ax2d.set_aspect("equal", adjustable="box")
     ax2d.set_xlabel("Y [m]")
@@ -476,7 +466,8 @@ def plot_arena(gates, trajectory_wps: np.ndarray = None):
 
 
 if __name__ == "__main__":
-    poses = load_gate_poses(MEASUREMENTS_NPY)
+    print(f"Loading gates from: {GATES_CSV}  (GATE_SOURCE={GATE_SOURCE})")
+    poses = load_gates_csv(GATES_CSV, home_xy=_HOME_DRONE_XY)
     gates = poses_to_gates(poses)
     trajectory_wps = build_trajectory_room_coords(poses)
     print_gate_table(gates)
