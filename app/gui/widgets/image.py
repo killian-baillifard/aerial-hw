@@ -30,6 +30,7 @@ class Image(Widget):
 
         # Save new image
         self.image = transform.scale(surface, (new_w, new_h))
+        self.image.set_palette(Image.PALETTE)
 
     def set_grayscale_image(self, surface: Surface):
 

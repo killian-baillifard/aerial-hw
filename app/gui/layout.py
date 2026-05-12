@@ -15,7 +15,7 @@ class Layout:
     WINDOW_WIDTH = 1280
     WINDOW_HEIGHT = 720
     MARGIN = 10
-    BTN_WIDTH = 150
+    BTN_WIDTH = 140
     LABEL_WIDTH = 200
     TOP_BAR = 30
     BOTTOM_BAR = 30
@@ -27,15 +27,17 @@ class Layout:
 
         # Top bar
         x = Layout.MARGIN
-        self.link_btn = Button(glm.uvec2(x, Layout.MARGIN), "LINK [SIM]", Layout.BTN_WIDTH)
+        self.radio_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "RADIO [OFF]", Layout.BTN_WIDTH)
         x += Layout.BTN_WIDTH + Layout.MARGIN
-        self.ctrl_btn = Button(glm.uvec2(x, Layout.MARGIN), "CTRL [MAN]", Layout.BTN_WIDTH)
+        self.wifi_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "WIFI [OFF]", Layout.BTN_WIDTH)
+        x += Layout.BTN_WIDTH + Layout.MARGIN
+        self.sim_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "SIM [OFF]", Layout.BTN_WIDTH)
+        x += Layout.BTN_WIDTH + Layout.MARGIN
+        self.mode_btn = Button(glm.uvec2(x, Layout.MARGIN), "MODE [MAN]", Layout.BTN_WIDTH)
         x += Layout.BTN_WIDTH + Layout.MARGIN
         self.source_btn = Button(glm.uvec2(x, Layout.MARGIN), "CONTROLLER", Layout.BTN_WIDTH)
         x += Layout.BTN_WIDTH + Layout.MARGIN
-        self.con_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "CON [OFF]", Layout.BTN_WIDTH)
-        x += Layout.BTN_WIDTH + Layout.MARGIN
-        self.vws_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "VWS [ON]", Layout.BTN_WIDTH, latched=True)
+        self.vws_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "VOICE [ON]", Layout.BTN_WIDTH, latched=True)
         x += Layout.BTN_WIDTH + Layout.MARGIN
         self.tkof_land_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "LANDED", Layout.BTN_WIDTH, disabled=True)
         x += Layout.BTN_WIDTH + Layout.MARGIN

@@ -3,7 +3,7 @@ import numpy as np
 from threading import Lock
 from cv2.typing import MatLike
 from pyglm import glm
-from app import Link, PlanStage, ControlMode, CommandSource
+from app import PlanStage, ControlMode, CommandSource
 from app.generics import Event
 from app.gui.widgets import Widget
 from app.gui.layout import Layout
@@ -16,6 +16,10 @@ class Gui:
 
     CLEAR_COLOR = (30, 30, 30)
     JOYSTICKS_LEN = 200
+
+    #------------------------------ #
+    #   Constructor                 #
+    #------------------------------ #
 
     def __init__(self) -> None:
 
@@ -33,30 +37,38 @@ class Gui:
         self.voice_warning_system = VoiceWarningSystem(self.audio)
 
         # Initialize events
-        self.connect_event: Event[Link] = Event[Link]()
-        self.disconnect_event: Event = Event()
+        self.connect_radio_event: Event = Event()
+        self.connect_wifi_event: Event = Event()
+        self.enable_sim_event: Event = Event()
+        self.disconnect_radio_event: Event = Event()
+        self.disconnect_wifi_event: Event = Event()
+        self.disable_sim_event: Event = Event()
+        self.manual_cmd_selected_event: Event[CommandSource] = Event[CommandSource]()
+        self.planner_selected_event: Event[PlanStage] = Event[PlanStage]()
         self.tkof_event: Event = Event()
         self.land_event: Event = Event()
         self.start_recording_event: Event = Event()
         self.stop_recording_event: Event = Event()
-        self.manual_cmd_selected_event: Event[CommandSource] = Event[CommandSource]()
-        self.planner_selected_event: Event[PlanStage] = Event[PlanStage]()
 
         # Register event listeners
-        self.layout.link_btn.release_event      += self.link_btn_click_handler
-        self.layout.ctrl_btn.release_event      += self.ctrl_btn_click_handler
+        self.layout.radio_btn.release_event     += self.radio_btn_click_handler
+        self.layout.wifi_btn.release_event      += self.wifi_btn_click_handler
+        self.layout.sim_btn.release_event       += self.sim_btn_click_handler
+        self.layout.mode_btn.release_event      += self.mode_btn_click_handler
         self.layout.source_btn.release_event    += self.source_btn_click_handler
-        self.layout.con_btn.release_event       += self.con_btn_click_handler
         self.layout.vws_btn.release_event       += self.vws_btn_click_handler
         self.layout.tkof_land_btn.release_event += self.tkof_land_btn_click_handler
         self.layout.rec_btn.release_event       += self.rec_btn_click_handler
 
         # Initialize state
         self.lock = Lock()
-        self.link = Link.SIMULATION
         self.control_mode = ControlMode.MANUAL
         self.command_source = CommandSource.CONTROLLER
         self.plan_stage = PlanStage.SCAN
+
+    #------------------------------ #
+    #   GUI update functions        #
+    #------------------------------ #
 
     def update_command_indicators(self, command: Command) -> None:
         self.layout.xy_joystick.set_delta(glm.ivec2(-command.velocity.y * Gui.JOYSTICKS_LEN, -command.velocity.x * Gui.JOYSTICKS_LEN))
@@ -79,7 +91,7 @@ class Gui:
 
     def update_camera_image(self, frame: MatLike) -> None:
         h, w = frame.shape[:2]
-        surface = pygame.image.frombuffer(frame.tobytes(), (w, h), "RGB")
+        surface = pygame.image.frombuffer(frame.tobytes(), (w, h), "P")
         self.layout.camera_image.set_color_image(surface)
 
     def render(self, dt: float) -> None:
@@ -97,29 +109,51 @@ class Gui:
             if event.type == pygame.QUIT:
                 quit = True
         return quit
-
-    def link_btn_click_handler(self) -> None:
+    
+    #----------------------------- #
+    #   Buttons event handlers     #
+    #----------------------------- #
+    
+    def radio_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
-        match self.link:
-            case Link.SIMULATION:
-                self.link = Link.WIFI
-            case Link.WIFI:
-                self.link = Link.RADIO
-            case Link.RADIO:
-                self.link = Link.SIMULATION
-        match self.link:
-            case Link.SIMULATION:
-                self.layout.link_btn.set_text("LINK [SIM]")
-            case Link.WIFI:
-                self.layout.link_btn.set_text("LINK [WIFI]")
-            case Link.RADIO:
-                self.layout.link_btn.set_text("LINK [RADIO]")
+        self.layout.radio_btn.set_text("RADIO [...]")
+        if self.layout.wifi_btn.latched:
+            self.layout.sim_btn.disable()
+            self.connect_radio_event()
+        else:
+            self.layout.sim_btn.enable()
+            self.disconnect_radio_event()
 
-    def update_control_mode(self) -> None:
+    def wifi_btn_click_handler(self) -> None:
+        self.audio.play(Audio.Track.BUTTON)
+        self.layout.wifi_btn.set_text("WIFI [...]")
+        if self.layout.wifi_btn.latched:
+            self.layout.sim_btn.disable()
+            self.connect_wifi_event()
+        else:
+            self.layout.sim_btn.enable()
+            self.disconnect_wifi_event()
+
+    def sim_btn_click_handler(self) -> None:
+        self.audio.play(Audio.Track.BUTTON)
+        if self.layout.sim_btn.latched:
+            self.layout.radio_btn.disable()
+            self.layout.wifi_btn.disable()
+            self.layout.tkof_land_btn.enable()
+            self.layout.sim_btn.set_text("SIM [ON]")
+            self.enable_sim_event()
+        else:
+            self.layout.radio_btn.enable()
+            self.layout.wifi_btn.enable()
+            self.layout.tkof_land_btn.disable()
+            self.layout.sim_btn.set_text("SIM [OFF]")
+            self.disable_sim_event()
+
+    def update_control_mode_and_source(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
         match self.control_mode:
             case ControlMode.MANUAL:
-                self.layout.ctrl_btn.set_text("CTRL [MAN]")
+                self.layout.mode_btn.set_text("MODE [MAN]")
                 self.manual_cmd_selected_event(self.command_source)
                 match self.command_source:
                     case CommandSource.KEYBOARD:
@@ -127,7 +161,7 @@ class Gui:
                     case CommandSource.CONTROLLER:
                         self.layout.source_btn.set_text("CONTROLLER")
             case ControlMode.PLANNER:
-                self.layout.ctrl_btn.set_text("CTRL [PLAN]")
+                self.layout.mode_btn.set_text("MODE [PLAN]")
                 self.planner_selected_event(self.plan_stage)
                 match self.plan_stage:
                     case PlanStage.SCAN:
@@ -135,14 +169,14 @@ class Gui:
                     case PlanStage.RACE:
                         self.layout.source_btn.set_text("STAGE [RACE]")
 
-    def ctrl_btn_click_handler(self) -> None:
+    def mode_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
         match self.control_mode:
             case ControlMode.MANUAL:
                 self.control_mode = ControlMode.PLANNER
             case ControlMode.PLANNER:
                 self.control_mode = ControlMode.MANUAL
-        self.update_control_mode()
+        self.update_control_mode_and_source()
 
     def source_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
@@ -159,42 +193,15 @@ class Gui:
                         self.plan_stage = PlanStage.RACE
                     case PlanStage.RACE:
                         self.plan_stage = PlanStage.SCAN
-        self.update_control_mode()
-
-    def con_btn_click_handler(self) -> None:
-        self.audio.play(Audio.Track.BUTTON)
-        self.layout.con_btn.set_text("CON [...]")
-        self.layout.con_btn.disable()
-        if self.layout.con_btn.latched:
-            self.layout.link_btn.disable()
-            self.connect_event(self.link)
-        else:
-            self.layout.tkof_land_btn.disable()
-            self.disconnect_event()
-
-    def connected(self) -> None:
-        self.lock.acquire()
-        self.layout.con_btn.set_text("CON [ON]")
-        self.layout.con_btn.enable()
-        self.layout.tkof_land_btn.enable()
-        self.lock.release()
-
-    def disconnected(self) -> None:
-        self.lock.acquire()
-        if self.layout.con_btn.latched:
-            self.layout.con_btn.release_handler()
-        self.layout.con_btn.set_text("CON [OFF]")
-        self.layout.con_btn.enable()
-        self.layout.link_btn.enable()
-        self.lock.release()
+        self.update_control_mode_and_source()
 
     def vws_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
         if self.layout.vws_btn.latched:
-            self.layout.vws_btn.set_text("VWS [ON]")
+            self.layout.vws_btn.set_text("VOICE [ON]")
             self.voice_warning_system.enable()
         else:
-            self.layout.vws_btn.set_text("VWS [OFF]")
+            self.layout.vws_btn.set_text("VOICE [OFF]")
             self.voice_warning_system.disable()
 
     def tkof_land_btn_click_handler(self) -> None:
@@ -202,20 +209,10 @@ class Gui:
         self.layout.tkof_land_btn.disable()
         if self.layout.tkof_land_btn.latched:
             self.layout.tkof_land_btn.set_text("TKOF")
-            self.layout.con_btn.disable()
             self.tkof_event()
         else:
             self.layout.tkof_land_btn.set_text("LAND")
             self.land_event()
-
-    def airborn(self) -> None:
-        self.layout.tkof_land_btn.set_text("AIRBORN")
-        self.layout.tkof_land_btn.enable()
-
-    def landed(self) -> None:
-        self.layout.tkof_land_btn.set_text("LANDED")
-        self.layout.tkof_land_btn.enable()
-        self.layout.con_btn.enable()
 
     def rec_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.SHUTTER)
@@ -226,5 +223,47 @@ class Gui:
             self.layout.rec_btn.set_text("REC [OFF]")
             self.stop_recording_event()
 
-    def quit(self) -> None:
+    #------------------------------- #
+    #   External event handlers      #
+    #------------------------------- #
+
+    def on_radio_connected(self) -> None:
+        self.lock.acquire()
+        self.layout.radio_btn.set_text("RADIO [ON]")
+        self.layout.tkof_land_btn.enable()
+        self.lock.release()
+
+    def on_wifi_connected(self) -> None:
+        self.lock.acquire()
+        self.layout.wifi_btn.set_text("WIFI [ON]")
+        self.lock.release()
+
+    def on_radio_disconnected(self) -> None:
+        self.lock.acquire()
+        if self.layout.radio_btn.latched:
+            self.layout.radio_btn.release_handler()
+        self.layout.radio_btn.set_text("RADIO [OFF]")
+        self.layout.tkof_land_btn.disable()
+        if not self.layout.wifi_btn.latched:
+            self.layout.sim_btn.enable()
+        self.lock.release()
+
+    def on_wifi_disconnected(self) -> None:
+        self.lock.acquire()
+        if self.layout.wifi_btn.latched:
+            self.layout.wifi_btn.release_handler()
+        self.layout.wifi_btn.set_text("WIFI [OFF]")
+        if not self.layout.radio_btn.latched:
+            self.layout.sim_btn.enable()
+        self.lock.release()
+
+    def on_airborn(self) -> None:
+        self.layout.tkof_land_btn.set_text("AIRBORN")
+        self.layout.tkof_land_btn.enable()
+
+    def on_landed(self) -> None:
+        self.layout.tkof_land_btn.set_text("LANDED")
+        self.layout.tkof_land_btn.enable()
+
+    def on_quit(self) -> None:
         pygame.quit()
