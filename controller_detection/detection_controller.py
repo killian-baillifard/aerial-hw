@@ -1,13 +1,45 @@
-### ToDOs/Ideas:
-# validate gate position (Oskar)
-# gate location (Oskar)
-# When to exit search state? (match matching gate detections) (Oskar)
-# Implement DEBUGGING visualization (Oskar)
+# TODO
+### Critical (needed for minimal working version)
+# [Oskar]  Add DetectionController.triangulate(candidate) wrapper 
+#          → calls candidate.triangulate(), stores result
+# [Oskar]  Add DetectionController.validate_gate_pos(corners_world) 
+#          → calls validate_gate_pos(), returns Gate or None
+# [Oskar]  Implement validate_gate_pos(): check planarity, aspect ratio, 
+#          min/max side length of triangulated corners
+# []       Define SEARCH waypoint pattern (e.g. expanding square or 
+#          fixed sweep trajectory at constant altitude)
+# [Oskar]  Implement SEARCH → PASS_GATE transition once ≥1 gate confirmed
+#          (select nearest / highest-confidence gate as target)
+#          gate selection logic if multiple candidates are confirmed
+# [Oskar]  Implement PASS_GATE waypoints: compute gate center + normal 
+#          from corners_world, set approach → through → exit waypoints
+
+### Validation & geometry
+# [Oskar]  Validate gate position / zone in world frame (expected arena bounds)
+# [Oskar]  cornerSubPix refinement after YOLO detection for sub-pixel accuracy
+
+### Debug & tuning
+# [Oskar]  Implement DEBUG visualization: draw tracked corners, candidate 
+#          bounding boxes, state label, and triangulated gate overlay on frame
+# Tune: matching_threshold, forget_time, redetect_timeout, 
+#       track_error_threshold, position_tolerance
+# Consider adapting search pattern based on candidate distribution 
+#      (e.g. turn toward cluster of unconfirmed candidates)
+
+### Search pattern
 # Define search pattern logic in SEARCH state to explore the environment effectively
-# Search pattern in dependence of observations?
-# Final check for passing gate (e.g. sweep before the gate to confirm position)
-# Implement fallback strategy if no gates are detected or similar error happens
-# (Tune parameters)
+# Search pattern in dependence of observations? (e.g. turn toward cluster of unconfirmed candidates)
+
+### Optional / polish
+# Classical vision fallback if YOLO confidence is low
+# Final confirmation sweep before committing to PASS_GATE 
+#      (re-detect gate from close range to verify position)
+# Gate ordering / sequencing if multiple gates are confirmed
+
+### Robustness / fallback
+# Implement fallback if no gate detected after N seconds in SEARCH 
+#      (e.g. spiral outward, change altitude)
+# Add try/except around YOLO model load with clear error message
 
 import cv2
 import numpy as np
@@ -443,14 +475,16 @@ class DetectionController:
             # 1) Update candidate states based on timeouts and triangulation results
             delete_ids = []
             for i, candidate in self.gate_candidates.items():
+                if candidate.last_seen is None:
+                    continue
                 age = self.current_timestamp - candidate.last_seen.timestamp
 
                 if candidate.state == CandidateState.TRACKING and age > self.forget_time:
                     candidate.state = CandidateState.TRIANGULATING
 
                 if candidate.state == CandidateState.TRIANGULATING:
-                    candidate.corners_world = self.triangulate(candidate)
-                    gate = self.validate_and_promote(candidate.corners_world)
+                    candidate.corners_world = candidate.triangulate()
+                    gate = self.validate_gate_pos(candidate.corners_world)
                     candidate.state = CandidateState.CONFIRMED if gate else CandidateState.REJECTED
 
                 if candidate.state == CandidateState.CONFIRMED:
