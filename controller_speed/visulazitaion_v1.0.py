@@ -9,9 +9,9 @@ from gate_poses import load_gate_poses
 # =========================
 # Real arena dimensions [m]
 # =========================
-ROOM_X = 2.87          # sheet vertical direction, world X
-ROOM_Y = 2.95          # sheet horizontal direction, world Y
-ROOM_Z = 2.40          # useful plotting height
+ROOM_X = 4.05          # sheet vertical direction, world X  (405 cm)
+ROOM_Y = 2.87          # sheet horizontal direction, world Y (287 cm)
+ROOM_Z = 3.00          # ceiling height [m]
 
 CENTER   = np.array([ROOM_X / 2, ROOM_Y / 2], dtype=float)
 HOME_Z   = 0.10
@@ -28,13 +28,24 @@ WALL_CLEARANCE = 0.04
 
 APPROACH_DIST = 0.20    # [m] waypoint offset from gate center on each side
 
-# Position of drone (0,0,0) in room world coordinates [m].
-# From sketch:  X = ROOM_X − 1.64       (164 cm from top wall → 1.23 m from bottom)
-#               Y = 2.01 + 0.165         (201 cm from left wall + 16.5 cm Lighthouse offset)
-DRONE_ORIGIN_XY = np.array([ROOM_X - 1.64, 2.01 + 0.165])
+# Fixed room positions along drone +Y = room +X (chain from top wall downward):
+#   World origin  : 201 cm from top wall  → X_room = 4.05 − 2.01 = 2.04
+#   Lighthouse    : − 16.5 cm             → X_room = 1.875
+#   Home pad      : − 100 cm further      → X_room = 0.875
+#   Horizontal    : 144 cm from right wall → Y_room = 2.87 − 1.44 = 1.43
+_LIGHTHOUSE_X = ROOM_X - 2.01 - 0.165          # 1.875 m
+_HOMEPAD_X    = ROOM_X - 2.01 - 0.165 - 1.00   # 0.875 m
+_ORIGIN_Y     = ROOM_Y - 1.44                   # 1.43 m
 
-# Home pad: drone HOME_SETPOINT = (−1.0, 0.0, 1.0) in drone frame → 100 cm behind origin
-HOME_XY = np.array([DRONE_ORIGIN_XY[0] - 1.0, DRONE_ORIGIN_XY[1]], dtype=float)
+# Set to "LIGHTHOUSE" if the drone took off at the lighthouse calibration point,
+# or "HOMEPAD" if the drone took off at the home pad.
+DRONE_TAKEOFF = "LIGHTHOUSE"
+
+DRONE_ORIGIN_XY = np.array([
+    {"LIGHTHOUSE": _LIGHTHOUSE_X, "HOMEPAD": _HOMEPAD_X}[DRONE_TAKEOFF],
+    _ORIGIN_Y,
+])
+HOME_XY = np.array([_HOMEPAD_X, _ORIGIN_Y], dtype=float)
 
 # =========================
 # Gate sizes (competition standard)
@@ -143,9 +154,12 @@ def poses_to_gates(poses: np.ndarray) -> list:
     for i, (x, y, z, yaw, _) in enumerate(poses):
         label = label_by_idx[i]
         nom_w, nom_h = GATE_NOMINAL_SIZES[label]
-        # Convert drone coords → room coords by adding the drone origin offset
-        x_room = x + DRONE_ORIGIN_XY[0]
-        y_room = y + DRONE_ORIGIN_XY[1]
+        # Drone frame -> room frame: direct translation, no rotation.
+        #   drone +X -> room +X  (up in sketch   = toward top wall  = increasing room X)
+        #   drone +Y -> room +Y  (left in sketch  = toward left wall = increasing room Y)
+        x_room   = DRONE_ORIGIN_XY[0] + x
+        y_room   = DRONE_ORIGIN_XY[1] + y
+        yaw_room = float(yaw)
         gates.append(Gate(
             idx=i + 1,
             size_label=label,
@@ -153,8 +167,8 @@ def poses_to_gates(poses: np.ndarray) -> list:
             height=nom_h,
             frame=FRAME_WIDTH,
             center=np.array([x_room, y_room, z]),
-            yaw=float(yaw),
-            bar_yaw=float(wrap(yaw + np.pi / 2)),
+            yaw=yaw_room,
+            bar_yaw=float(wrap(yaw_room + np.pi / 2)),
         ))
     return gates
 
@@ -172,10 +186,18 @@ def build_trajectory_room_coords(poses: np.ndarray) -> np.ndarray:
     for _ in range(2):
         for x, y, z, yaw, _ in poses:
             dx, dy = np.cos(yaw), np.sin(yaw)
-            wps.append([x - APPROACH_DIST * dx + DRONE_ORIGIN_XY[0],
-                        y - APPROACH_DIST * dy + DRONE_ORIGIN_XY[1], z])
-            wps.append([x + APPROACH_DIST * dx + DRONE_ORIGIN_XY[0],
-                        y + APPROACH_DIST * dy + DRONE_ORIGIN_XY[1], z])
+            # Approach: (x - d*dx, y - d*dy) in drone frame -> room (direct translation)
+            wps.append([
+                DRONE_ORIGIN_XY[0] + (x - APPROACH_DIST * dx),
+                DRONE_ORIGIN_XY[1] + (y - APPROACH_DIST * dy),
+                z
+            ])
+            # Exit: (x + d*dx, y + d*dy) in drone frame -> room
+            wps.append([
+                DRONE_ORIGIN_XY[0] + (x + APPROACH_DIST * dx),
+                DRONE_ORIGIN_XY[1] + (y + APPROACH_DIST * dy),
+                z
+            ])
     # Final waypoint: return home at flying height
     wps.append([HOME_XY[0], HOME_XY[1], 0.5])
     return np.array(wps)
