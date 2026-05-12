@@ -11,8 +11,8 @@ class Planner(ABC):
 
     HOME_SETPOINT   = Setpoint(glm.vec3(-1.0, 0.0, 1.0), 0.0)
     APPROACH_DIST   = 0.20          # m
-    POS_TOL         = 0.05          # m
-    YAW_TOL         = np.pi / 12    # radians
+    POS_TOL         = 0.15          # m
+    YAW_TOL         = np.pi / 6    # radians
 
     def __init__(self):
         self.waypoints: list[Setpoint]  = []

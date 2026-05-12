@@ -31,7 +31,7 @@ class Telemetry(Thread):
     UPDATE_PERIOD   = 20    # ms
     TKOF_HEIGHT     = 1.0   # m
     LAND_HEIGHT     = 0.1   # m
-    TOLERANCE       = 0.05  # m
+    TOLERANCE       = 0.15  # m
     MIN_HEIGHT      = 0.05  # m
 
     def __init__(self, sim_overlay_func: Callable[[MatLike], None]) -> None:
@@ -68,7 +68,7 @@ class Telemetry(Thread):
         self.measurement: Mailbox[Measurement] = Mailbox(Measurement())
         self.frame: Mailbox[MatLike] = Mailbox(np.zeros(shape=(HEIGHT, WIDTH, 3), dtype=np.uint8))
         self.command: Command = Command()
-        self.z: float = 0.0
+        self.z: float = Telemetry.TKOF_HEIGHT
 
         # Start camera thread
         self.start()
@@ -162,6 +162,8 @@ class Telemetry(Thread):
                         self.simulate_crazyflie(dt)
                 case Link.WIFI | Link.RADIO:
                         self.crazyflie.commander.send_zdistance_setpoint(0.0, 0.0, 0.0, Telemetry.TKOF_HEIGHT)
+        else:
+            self.z = Telemetry.TKOF_HEIGHT
         return airborn
 
     def land(self, dt: float) -> bool:
