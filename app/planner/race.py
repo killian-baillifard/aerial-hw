@@ -25,11 +25,11 @@ class RacePlanner(Planner):
         file_path = os.path.join(gates_directory, file_name)
 
         # Load and parse gates coordinates
-        # - Assume it's a csv with columns (x, y, z, yaw)
+        # - Assume it's a csv with columns (Gate, x, y, z, theta, width, height)
         # - Assume first row is a header, pop it
         raw_csv_data: np.ndarray    = np.genfromtxt(file_path, delimiter=',')[1:]
-        positions: list[glm.vec3]   = [glm.vec3(row[0], row[1], row[2]) for row in raw_csv_data]
-        yaws: list[float]           = [wrap(row[3]) for row in raw_csv_data]
+        positions: list[glm.vec3]   = [glm.vec3(row[1], row[2], row[3]) for row in raw_csv_data]
+        yaws: list[float]           = [wrap(row[4]) for row in raw_csv_data]
         self.gates                  = [Setpoint(position, yaw) for position, yaw in zip(positions, yaws)]
 
         # Build trajectory starting from home position

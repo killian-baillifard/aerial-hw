@@ -12,7 +12,7 @@ class Recorder:
 
     RECORDINGS_PATH = os.path.join("recordings")
     GATES_PATH = os.path.join("gates")
-    GATES_FILE_NAME = "gates.csv"
+    GATES_FILE_NAME = "gates_info.csv"
     GATES_FILE_PATH = os.path.join(GATES_PATH, GATES_FILE_NAME)
 
     def __init__(self) -> None:
@@ -27,8 +27,19 @@ class Recorder:
         if not os.path.isfile(Recorder.GATES_FILE_PATH):
             with open(Recorder.GATES_FILE_PATH, "w", newline="") as gates_file:
                 csv_writer = csv.writer(gates_file)
-                csv_writer.writerow(["x", "y", "z", "yaw"])
+                csv_writer.writerow(["Gate", "x", "y", "z", "theta", "width", "height"])
                 gates_file.flush()
+                self.i = 0
+        else:
+            with open(Recorder.GATES_FILE_PATH, "r", newline="") as gates_file:
+                csv_reader = csv.reader(gates_file)
+                last_row = None
+                for row in csv_reader:
+                    last_row = row
+                if last_row[0] != "Gate":
+                    self.i = int(last_row[0])
+                else:
+                    self.i = 0
 
         # Set crash saver
         atexit.register(self.save_on_exit)
@@ -78,7 +89,16 @@ class Recorder:
     def add_gate(self, measurement: Measurement) -> None:
         with open(Recorder.GATES_FILE_PATH, "a", newline="") as gates_file:
             csv_writer = csv.writer(gates_file)
-            csv_writer.writerow(measurement.as_setpoint().to_array())
+            self.i += 1
+            csv_writer.writerow([
+                self.i,
+                measurement.position.x,
+                measurement.position.y,
+                measurement.position.z,
+                measurement.rotation.z,
+                0.5,
+                0.5
+            ])
 
     def load_recording(self, session_name: str) -> list[tuple[Measurement, MatLike]]:
         csv_path = os.path.join(Recorder.RECORDINGS_PATH, f"{session_name}.csv")
