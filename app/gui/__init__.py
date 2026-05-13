@@ -90,7 +90,7 @@ class Gui:
     def update_camera_image(self, frame: MatLike) -> None:
         h, w = frame.shape[:2]
         surface = pygame.image.frombuffer(frame.tobytes(), (w, h), "P")
-        self.layout.camera_image.set_color_image(surface)
+        self.layout.camera_image.set_image(surface)
 
     def render(self, dt: float) -> None:
         self.voice_warning_system.update_counter(dt)
