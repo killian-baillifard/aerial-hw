@@ -12,6 +12,7 @@ class Keyboard(Command):
     def __init__(self) -> None:
         super().__init__()
         self.yaw_axis = 0.0
+        self.last_space = False
 
     @staticmethod
     def virtual_axis(axis: float, keys: ScancodeWrapper, inc_key: int, dec_key: int, dt: float) -> float:
@@ -57,3 +58,8 @@ class Keyboard(Command):
         self.velocity.z = Keyboard.virtual_axis(self.velocity.z, keys, K_LSHIFT, K_LCTRL, dt)
         self.yaw_axis = Keyboard.virtual_axis(self.yaw_axis, keys, K_q, K_e, dt)
         self.yaw_rate = self.yaw_axis * Command.YAW_RATE
+
+        # Detect spacebar press for capture
+        space = keys[K_SPACE]
+        self.capture = space and not self.last_space
+        self.last_space = space

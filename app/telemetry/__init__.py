@@ -329,14 +329,14 @@ class Telemetry(Thread):
                     jpeg = np.frombuffer(buffer, np.uint8, count=jpeg_len, offset=soi)
                     image = cv2.imdecode(jpeg, cv2.IMREAD_UNCHANGED)
                     
-                    # Expect decoded image to be of the right dimensions
+                    # Expect decoded image to be of the right size
                     if image is None or image.shape[:2] != (HEIGHT, WIDTH):
                         receiving = False
                         continue
                     
-                    # If image has 3 channels, 
+                    # If image has 3 dimensions
                     if image.ndim == 3:
-                        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
                     # Save image and start new reception
                     self.frame.set(image)

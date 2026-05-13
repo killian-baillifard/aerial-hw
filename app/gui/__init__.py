@@ -74,8 +74,6 @@ class Gui:
         self.layout.xy_joystick.set_delta(glm.ivec2(-command.velocity.y * Gui.JOYSTICKS_LEN, -command.velocity.x * Gui.JOYSTICKS_LEN))
         self.layout.z_joystick.set_delta(glm.ivec2(0, -command.velocity.z * Gui.JOYSTICKS_LEN))
         self.layout.yaw_joystick.set_delta(glm.ivec2(-(command.yaw_rate / Command.YAW_RATE) * Gui.JOYSTICKS_LEN, 0))
-        if self.layout.rec_btn.latched:
-            self.layout.shutter_indicator.trigger()
 
     def update_measurement_indicators(self, measurement: Measurement) -> None:
         self.layout.x_indicator.set_text(f"[X = {measurement.position.x:.3f} m]")
@@ -217,7 +215,7 @@ class Gui:
             self.land_event()
 
     def rec_btn_click_handler(self) -> None:
-        self.audio.play(Audio.Track.SHUTTER)
+        self.audio.play(Audio.Track.BUTTON)
         if self.layout.rec_btn.latched:
             self.layout.rec_btn.set_text("REC [ON]")
             self.start_recording_event()
