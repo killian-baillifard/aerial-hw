@@ -88,6 +88,7 @@ class App:
             if new_frame:
                 flags |= Telemetry.Flags.NEW_FRAME
                 self.gui.update_camera_image(frame)
+            if new_measurement or new_frame:
                 self.recorder.record(measurement, frame)
 
             # Compute command / setpoint

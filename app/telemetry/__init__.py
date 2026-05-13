@@ -1,4 +1,4 @@
-import os, logging, struct, time
+import os, struct, time
 import numpy as np
 import cv2
 from typing import Callable
@@ -7,7 +7,6 @@ from threading import Thread
 from overrides import override
 from pyglm import glm
 import cflib.crtp
-from cflib.utils import uri_helper
 from cflib.crazyflie import Crazyflie
 from cflib.crazyflie.log import LogConfig
 from app.generics import Atomic, Mailbox, Event
@@ -19,7 +18,7 @@ import socket
 
 class Telemetry(Thread):
 
-    RADIO_URI       = uri_helper.uri_from_env(default="radio://0/20/2M/E7E7E7E702")
+    URI = "radio://0/20/2M/E7E7E7E702"
     UPDATE_PERIOD   = 20    # ms
     
     TKOF_HEIGHT     = 1.0   # m
@@ -54,8 +53,13 @@ class Telemetry(Thread):
 
     def __init__(self, sim_draw_function: Callable[[MatLike], None]) -> None:
         super().__init__(name='Telemetry', daemon=True)
-        logging.basicConfig(level=logging.ERROR)
         cflib.crtp.init_drivers()
+        
+        # Create crazyflie and register event handlers
+        self.crazyflie = Crazyflie(rw_cache=os.path.join("cache"))
+        self.crazyflie.connected.add_callback(self.on_radio_connected)
+        self.crazyflie.connection_failed.add_callback(self.on_radio_connection_failed)
+        self.crazyflie.disconnected.add_callback(self.on_radio_disconnected)
 
         # Create log configuration
         self.log_config = LogConfig("Telemetry", Telemetry.UPDATE_PERIOD)
@@ -69,19 +73,7 @@ class Telemetry(Thread):
         self.log_config.data_received_cb.add_callback(self.on_data_received)
         self.log_config.error_cb.add_callback(self.on_data_error)
 
-        # Create events
-        self.radio_connected_event: Event = Event()
-        self.radio_disconnected_event: Event = Event()
-        self.wifi_connected_event: Event = Event()
-        self.wifi_disconnected_event: Event = Event()
-        
-        # Register event handlers
-        self.crazyflie = Crazyflie(ro_cache=None, rw_cache=os.path.join("cache"))
-        self.crazyflie.connected.add_callback(self.on_radio_connected)
-        self.crazyflie.connection_failed.add_callback(self.on_radio_connection_failed)
-        self.crazyflie.disconnected.add_callback(self.on_radio_disconnected)
-
-        # Telemetry state
+        # Initialize telemetry state
         self.radio_connected: Atomic[bool] = Atomic(False)
         self.sim_enabled: Atomic[bool] = Atomic(False)
         self.wifi_state: Atomic[Telemetry.WifiState] = Atomic(Telemetry.WifiState.DISCONNECTED)
@@ -90,6 +82,12 @@ class Telemetry(Thread):
         self.frame: Mailbox[MatLike] = Mailbox(np.zeros(shape=(HEIGHT, WIDTH), dtype=np.uint8))
         self.command: Command = Command()
         self.z: float = 0
+
+        # Create events
+        self.radio_connected_event: Event = Event()
+        self.radio_disconnected_event: Event = Event()
+        self.wifi_connected_event: Event = Event()
+        self.wifi_disconnected_event: Event = Event()
 
         # Start camera thread
         self.start()
@@ -108,7 +106,7 @@ class Telemetry(Thread):
         )
         rotation = glm.vec3(
             np.deg2rad(data["stabilizer.roll"]),
-            np.deg2rad(data["stabilizer.pitch"]),
+            -np.deg2rad(data["stabilizer.pitch"]),
             np.deg2rad(data["stabilizer.yaw"])
         )
         battery = float(data["pm.batteryLevel"]) / 100.0
@@ -122,24 +120,24 @@ class Telemetry(Thread):
     def on_radio_connected(self, link_uri):
         print(f"Connected to {link_uri}")
         try:
-            self.crazyflie.supervisor.send_arming_request(True)
             self.crazyflie.log.add_config(self.log_config)
             self.log_config.start()
+            self.crazyflie.supervisor.send_arming_request(True)
             self.radio_connected.set(True)
             self.radio_connected_event()
         except KeyError as e:
             print(f"Could not start log configuration, '{e}' not found in TOC")
+            self.radio_disconnected_event()
         except AttributeError:
             print("Could not add Stabilizer log config, bad configuration")
+            self.radio_disconnected_event()
 
     def on_radio_connection_failed(self, link_uri, msg):
         print(f"Connection to '{link_uri}' failed: '{msg}'")
-        self.link.set(None)
         self.radio_disconnected_event()
 
     def on_radio_disconnected(self, link_uri):
         print(f"Disconnected from '{link_uri}'")
-        self.link.set(None)
         self.radio_connected.set(False)
         self.radio_disconnected_event()
 
@@ -148,11 +146,10 @@ class Telemetry(Thread):
     #------------------------------ #
 
     def on_connect_radio(self) -> None:
-        Thread(target=self.crazyflie.open_link, args=(Telemetry.RADIO_URI, ), daemon=True).start()
+        Thread(target=self.crazyflie.open_link, args=(Telemetry.URI, ), daemon=True).start()
 
     def on_disconnect_radio(self) -> None:
-        self.crazyflie.supervisor.send_arming_request(False)
-        self.crazyflie.close_link()
+        Thread(target=self.crazyflie.close_link, daemon=True).start()
 
     def on_connect_wifi(self) -> None:
         self.wifi_state.set(Telemetry.WifiState.CONNECT)

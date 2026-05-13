@@ -117,7 +117,8 @@ class Gui:
     def radio_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
         self.layout.radio_btn.set_text("RADIO [...]")
-        if self.layout.wifi_btn.latched:
+        self.layout.radio_btn.disable()
+        if self.layout.radio_btn.latched:
             self.layout.sim_btn.disable()
             self.connect_radio_event()
         else:
@@ -127,6 +128,7 @@ class Gui:
     def wifi_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
         self.layout.wifi_btn.set_text("WIFI [...]")
+        self.layout.wifi_btn.disable()
         if self.layout.wifi_btn.latched:
             self.layout.sim_btn.disable()
             self.connect_wifi_event()
@@ -230,12 +232,14 @@ class Gui:
     def on_radio_connected(self) -> None:
         self.lock.acquire()
         self.layout.radio_btn.set_text("RADIO [ON]")
+        self.layout.radio_btn.enable()
         self.layout.tkof_land_btn.enable()
         self.lock.release()
 
     def on_wifi_connected(self) -> None:
         self.lock.acquire()
         self.layout.wifi_btn.set_text("WIFI [ON]")
+        self.layout.wifi_btn.enable()
         self.lock.release()
 
     def on_radio_disconnected(self) -> None:
@@ -243,6 +247,7 @@ class Gui:
         if self.layout.radio_btn.latched:
             self.layout.radio_btn.release_handler()
         self.layout.radio_btn.set_text("RADIO [OFF]")
+        self.layout.radio_btn.enable()
         self.layout.tkof_land_btn.disable()
         if not self.layout.wifi_btn.latched:
             self.layout.sim_btn.enable()
@@ -253,6 +258,7 @@ class Gui:
         if self.layout.wifi_btn.latched:
             self.layout.wifi_btn.release_handler()
         self.layout.wifi_btn.set_text("WIFI [OFF]")
+        self.layout.wifi_btn.enable()
         if not self.layout.radio_btn.latched:
             self.layout.sim_btn.enable()
         self.lock.release()
