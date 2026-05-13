@@ -62,6 +62,49 @@ def refine_corners(gray_img, raw_points):
 
     return refined.reshape(-1, 2)   # back to (N, 2)
 
+def refine_to_blob_center(gray_img, raw_points, search_radius=15, threshold=180):
+    """
+    Refine each point to the centroid of the bright blob nearest to it.
+
+    Parameters
+    ----------
+    gray_img      : uint8 grayscale image
+    raw_points    : list of (x, y) — YOLO keypoint predictions
+    search_radius : half-size of the crop around each point (pixels)
+    threshold     : brightness cutoff to isolate the LED blob (0–255)
+                    tune this to your LED intensity
+
+    Returns
+    -------
+    numpy array (N, 2) of refined float (x, y) in full-image coordinates
+    """
+    refined = []
+    h, w = gray_img.shape
+
+    for (px, py) in raw_points:
+        # --- crop a small window around the predicted point ---
+        x0 = max(0, int(px) - search_radius)
+        y0 = max(0, int(py) - search_radius)
+        x1 = min(w,  int(px) + search_radius)
+        y1 = min(h,  int(py) + search_radius)
+
+        crop = gray_img[y0:y1, x0:x1]
+
+        # --- threshold to isolate bright LED blob ---
+        _, binary = cv2.threshold(crop, threshold, 255, cv2.THRESH_BINARY)
+
+        # --- compute image moments → centroid ---
+        M = cv2.moments(binary)
+
+        if M["m00"] > 0:                          # blob found
+            cx = M["m10"] / M["m00"] + x0        # back to full-image coords
+            cy = M["m01"] / M["m00"] + y0
+            refined.append((cx, cy))
+        else:                                      # no blob → keep original
+            refined.append((px, py))
+
+    return np.array(refined, dtype=np.float32)
+
 # ── Ground truth ──────────────────────────────────────────────────────────────
 # 2. Parse the ground truth label file and draw CIRCLES
 if os.path.exists(label_path):

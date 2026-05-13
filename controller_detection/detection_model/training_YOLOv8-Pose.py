@@ -14,7 +14,7 @@ def train_gate_pose_model():
     # Train the model
     # We pass the path to the data.yaml file we created
     results = model.train(
-        data='dataset/annotated_gates_v2bw_split/data.yaml',
+        data='dataset/annotated_gates_v3bw_split/data.yaml',
         
         # Training parameters
         epochs=200,               # 100 is a good starting point. It will early-stop if it plateaus.
@@ -48,7 +48,7 @@ def train_gate_pose_model():
         
         # Save settings
         project=os.path.join(current_dir, 'models'),         # Folder name where results are saved
-        name='yolov8n_v2bw_r1',     # Subfolder for this specific training run
+        name='yolov8n_v3bw_r1',     # Subfolder for this specific training run
         save=True                 # Save the weights
     )
 

@@ -8,14 +8,14 @@ from ultralytics import YOLO
 # ──────────────────────────────────────────────
 
 MODELS = {
-    "YOLOv8n v1r1": "models/yolov8n_v1_r1/weights/best.pt",
-    "YOLOv8n v2r1": "models/yolov8n_v2_r1/weights/best.pt",
-    "YOLOv8n v2r2": "models/yolov8n_v2_r2/weights/best.pt",
-    "YOLOv8s v2r1": "models/yolov8s_v2_r1/weights/best.pt",
+    "YOLOv8n v2rgbr1": "models/yolov8n_v2rgb_r1/weights/best.pt",
+    "YOLOv8n v2rgbr2": "models/yolov8n_v2rgb_r2/weights/best.pt",
+    "YOLOv8s v2rgbr1": "models/yolov8s_v2rgb_r1/weights/best.pt",
+    "YOLOv8n v2bwr1": "models/yolov8n_v2bw_r1/weights/best.pt",
     # Add / remove entries freely – dict key becomes the column header
 }
 
-TEST_FOLDER = "dataset/annotated_gates_v2_split/test/"
+TEST_FOLDER = "dataset/annotated_gates_vbw_split/test/"
 OUTPUT_DIR  = "inference_comparison"
 BATCH_SIZE  = 4
 

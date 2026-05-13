@@ -3,7 +3,7 @@ kpt_shape:
 - 3
 names:
   0: gate
-path: ./dataset/annotated_gates_v2_split
+path: ./dataset/annotated_gates_v2bw_split
 test: test/images
 train: train/images
 val: val/images
