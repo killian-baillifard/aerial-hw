@@ -6,7 +6,7 @@ from app import wrap
 from app.io import Measurement
 from app.io import Setpoint
 from app.planner import Planner
-from app.telemetry import TelemetryFlags
+from app.telemetry import Telemetry
 from app.generics import Event
 
 class ScanPlanner(Planner):
@@ -23,7 +23,7 @@ class ScanPlanner(Planner):
         self.waypoints.append(ScanPlanner.HOME_SETPOINT)
 
     @overrides
-    def update(self, measurement: Measurement, frame: MatLike, flags: TelemetryFlags, dt: float) -> Setpoint:
+    def update(self, measurement: Measurement, frame: MatLike, flags: Telemetry.Flags, dt: float) -> Setpoint:
 
         # Waypoint list empty, go back to home position
         if(len(self.waypoints) == 0):

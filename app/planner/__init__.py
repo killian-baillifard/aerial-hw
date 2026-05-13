@@ -5,14 +5,14 @@ from cv2.typing import MatLike
 from app.io import Measurement
 from app.io import Setpoint
 from app import wrap
-from app.telemetry import TelemetryFlags
+from app.telemetry import Telemetry
 
 class Planner(ABC):
 
     HOME_SETPOINT   = Setpoint(glm.vec3(-1.0, 0.0, 1.0), 0.0)
     APPROACH_DIST   = 0.20          # m
-    POS_TOL         = 0.05          # m
-    YAW_TOL         = np.pi / 12    # radians
+    POS_TOL         = 0.15          # m
+    YAW_TOL         = np.pi / 6    # radians
 
     def __init__(self):
         self.waypoints: list[Setpoint]  = []
@@ -72,7 +72,7 @@ class Planner(ABC):
         pass
 
     @abstractmethod
-    def update(self, measurement: Measurement, frame: MatLike, flags: TelemetryFlags, dt: float) -> Setpoint:
+    def update(self, measurement: Measurement, frame: MatLike, flags: Telemetry.Flags, dt: float) -> Setpoint:
         """
         Run one frame on the planner state machine
 
