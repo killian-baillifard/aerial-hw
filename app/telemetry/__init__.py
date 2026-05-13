@@ -61,18 +61,6 @@ class Telemetry(Thread):
         self.crazyflie.connection_failed.add_callback(self.on_radio_connection_failed)
         self.crazyflie.disconnected.add_callback(self.on_radio_disconnected)
 
-        # Create log configuration
-        self.log_config = LogConfig("Telemetry", Telemetry.UPDATE_PERIOD)
-        self.log_config.add_variable("stateEstimate.x")
-        self.log_config.add_variable("stateEstimate.y")
-        self.log_config.add_variable("stateEstimate.z")
-        self.log_config.add_variable("stabilizer.roll")
-        self.log_config.add_variable("stabilizer.pitch")
-        self.log_config.add_variable("stabilizer.yaw")
-        self.log_config.add_variable("pm.batteryLevel")
-        self.log_config.data_received_cb.add_callback(self.on_data_received)
-        self.log_config.error_cb.add_callback(self.on_data_error)
-
         # Initialize telemetry state
         self.radio_connected: Atomic[bool] = Atomic(False)
         self.sim_enabled: Atomic[bool] = Atomic(False)
@@ -91,6 +79,27 @@ class Telemetry(Thread):
 
         # Start camera thread
         self.start()
+
+    def initialize_log_config(self) -> None:
+        self.log_config = LogConfig("Telemetry", Telemetry.UPDATE_PERIOD)
+        self.log_config.add_variable("stateEstimate.x")
+        self.log_config.add_variable("stateEstimate.y")
+        self.log_config.add_variable("stateEstimate.z")
+        self.log_config.add_variable("stabilizer.roll")
+        self.log_config.add_variable("stabilizer.pitch")
+        self.log_config.add_variable("stabilizer.yaw")
+        self.log_config.add_variable("pm.batteryLevel")
+        self.log_config.data_received_cb.add_callback(self.on_data_received)
+        self.log_config.error_cb.add_callback(self.on_data_error)
+        self.crazyflie.log.add_config(self.log_config)
+        self.log_config.start()
+
+    def clear_log_config(self) -> None:
+        self.log_config.stop()
+        self.log_config.data_received_cb.remove_callback(self.on_data_received)
+        self.log_config.error_cb.remove_callback(self.on_data_error)
+        self.log_config.delete()
+        self.log_config = None
 
     #------------------------------ #
     #   Radio event handlers        #
@@ -120,8 +129,7 @@ class Telemetry(Thread):
     def on_radio_connected(self, link_uri):
         print(f"Connected to {link_uri}")
         try:
-            self.crazyflie.log.add_config(self.log_config)
-            self.log_config.start()
+            self.initialize_log_config()
             self.crazyflie.supervisor.send_arming_request(True)
             self.radio_connected.set(True)
             self.radio_connected_event()
@@ -149,7 +157,10 @@ class Telemetry(Thread):
         Thread(target=self.crazyflie.open_link, args=(Telemetry.URI, ), daemon=True).start()
 
     def on_disconnect_radio(self) -> None:
-        Thread(target=self.crazyflie.close_link, daemon=True).start()
+        def close() -> None:
+            self.clear_log_config()
+            self.crazyflie.close_link()
+        Thread(target=close, daemon=True).start()
 
     def on_connect_wifi(self) -> None:
         self.wifi_state.set(Telemetry.WifiState.CONNECT)
