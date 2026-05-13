@@ -277,13 +277,17 @@ class Telemetry(Thread):
                     sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1 << 20)
                     sock.bind(('0.0.0.0', Telemetry.LOCAL_PORT))
                     sock.sendto(Telemetry.START_MAGIC, (Telemetry.AIDECK_IP, self.AIDECK_PORT))
+                    sock.settimeout(3.0)
                     self.wifi_state.set(Telemetry.WifiState.CONNECTED)
                     self.wifi_connected_event()
 
                 case Telemetry.WifiState.CONNECTED:
                     
                     # Read new datagram
-                    data, _ = sock.recvfrom(2048)
+                    try:
+                        data, _ = sock.recvfrom(2048)
+                    except:
+                        continue
 
                     # Return early if CPX header was not received
                     if len(data) < Telemetry.CPX_HEADER_SIZE:
