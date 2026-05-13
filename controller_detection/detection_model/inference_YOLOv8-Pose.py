@@ -3,7 +3,7 @@ from ultralytics import YOLO
 import cv2
 
 # Load your custom trained model
-model = YOLO('models/yolov8n_v2_r2/weights/best.pt')
+model = YOLO('models/yolov8n_v2rgb_r2/weights/best.pt')
 
 # Get test image folder path
 test_folder = 'dataset/annotated_gates_v2_split/test/'
