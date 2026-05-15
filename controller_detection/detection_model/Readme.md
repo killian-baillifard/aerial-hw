@@ -128,6 +128,22 @@ nuctl delete function pytorch-ultralytics-yolov8-pose-gate --namespace cvat --pl
 nuctl delete project cvat --platform local
 ```
 
+#### Multiple Models
+
+Create folder again for the new model, copy the ```function.yaml``` and ```main.py``` from the previous model, update the ```best.pt``` with the new weights, and deploy again. 
+
+In ```function.yaml```, make sure to update the function name.
+
+In the new model folder run: (but change the name ```pytorch-ultralytics-yolov8-pose-gate-new_version```)
+```bash
+conda activate gate_detection_env
+
+DOCKER_DEFAULT_PLATFORM=linux/arm64 nuctl deploy pytorch-ultralytics-yolov8-pose-gate-v3bw \
+  --project-name cvat \
+  --path . \
+  --platform local
+```
+
 ## Dataset Structure
 
 Split the dataset into training and validation sets. Use ```split_dataset.py``` .

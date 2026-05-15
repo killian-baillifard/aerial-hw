@@ -27,6 +27,7 @@
 # ((TODO:11)) Add try/except around YOLO model load with clear error message
 # ((TODO:13)) Classical vision fallback if YOLO confidence is low
 # ((TODO:12)) Recalculate missing corners
+# ((TODO:20)) Doing dtection with yolo on some frames twice at the moment
 
 import cv2
 import numpy as np
@@ -185,16 +186,17 @@ class DetectionController:
         self.state: DroneState = DroneState.TAKEOFF
 
         # Detection
-        self.forget_time: float = 2.0 # seconds
-        self.matching_threshold: float = 20.0 # pixels, for associating detections to candidates
+        self.forget_time: float = 3.0 # seconds
+        self.matching_threshold: float = 100.0 # pixels, for associating detections to candidates
+        self.yolo_conf_threshold: float = 0.5 # confidence threshold for YOLO detections
         self.model = YOLO('detection_model/models/yolov8n_v2rgb_r1/weights/best.pt')
         self.gate_candidates: dict[int, GateCandidate] = {} # dict of GateCandidate objects
         self._next_candidate_id: int = 0
         self.detected_gates: dict[int, GateCandidate] = {} # dict of confirmed Gate objects
 
         # Tracking
-        self.redetect_timeout: float = 0.5 # seconds
-        self.track_error_threshold = 10.0 # pixels
+        self.redetect_timeout: float = 0.0 # seconds
+        self.track_error_threshold = 50.0 # pixels
         self.last_detection_timestamp: float = float(0.0)
         self.prev_frame: Optional[np.ndarray] = None # Gray-scale image of previous frame for LK tracking
         self.prev_frame_timestamp: Optional[float] = None
@@ -216,6 +218,10 @@ class DetectionController:
         # Path through gate
         self.gate_approach_distance = 0.15 # [m] 
         self.gate_exit_distance = 0.10 # [m]
+
+        # Closed loop control
+        ### TODO:VINCENT ###
+        # set your state variables here
 
         # Control Command
         self.position_tolerance = 0.05 # [m]
@@ -243,6 +249,10 @@ class DetectionController:
         self.val_side_ratio_thresh = 0.40   # max |w-h|/(w+h) asymmetry (gates are ~square to ~2:1)
         self.val_size_min  = 0.20           # [m] min plausible outer side length (height and width)
         self.val_size_max  = 0.70           # [m] max plausible outer side length (height and width)
+
+        # Debugging
+        self.debug_mode = DEBUG
+        self.camera_data = None # for visualization in debug mode
 
         pass
 
@@ -279,37 +289,63 @@ class DetectionController:
         No pose involved.
         """
 
+        # Run YOLO detection and filter out low confidence corners
         detected_gates = self.yolo_detect(camera_data)
+        detected_gates = [[cd for cd in det if cd.conf >= self.yolo_conf_threshold] for det in detected_gates]
 
         # ((TODO:13)) classical vision pipeline
 
         return detected_gates
 
     def yolo_detect(self, camera_data) -> list[list[CornerDetection]]:
-
         # Run inference on the camera data
-        # Note: iou=0.7 allows bounding boxes to heavily overlap without being filtered out
-        results = self.model.predict(source=camera_data, conf=0.5, iou=0.7)
+        results = self.model.predict(source=camera_data, conf=0.5, iou=0.7, verbose=False)
 
-        # Extract coordinates and confidences
         detected_gates = []
-        keypoints = results.keypoints
-        if keypoints is not None and keypoints.xy.numel() > 0:
-            for i in range(len(keypoints.xy)):
+        iterable = results if isinstance(results, (list, tuple)) else [results]
+
+        for r in iterable:
+            keypoints = getattr(r, "keypoints", None)
+            
+            # Check if keypoints exist and are not empty using PyTorch's .numel()
+            if keypoints is None or not hasattr(keypoints, "xy") or keypoints.xy.numel() == 0:
+                continue
+
+            # Safely move tensors to CPU and convert to numpy to avoid CUDA TypeErrors
+            xy_all = keypoints.xy.cpu().numpy()
+            conf_all = keypoints.conf.cpu().numpy() if keypoints.conf is not None else None
+        
+            for i, det in enumerate(xy_all):
+                # det is already a numpy array of shape (N_keypoints, 2)
+                pts = det.reshape(-1, 2) 
+                
+                # Map confidences directly matching the shape of the detections
+                if conf_all is None:
+                    confs = np.ones(len(pts), dtype=float)
+                else:
+                    confs = conf_all[i]
+
                 corners = []
+                for j, p in enumerate(pts):
+                    # Check for the (0, 0) default YOLO outputs for hidden keypoints
+                    if p[0] == 0.0 and p[1] == 0.0:
+                        continue
 
-                coords = keypoints.xy[i].cpu().numpy()  # Array of 4 (x,y) corners
-                confs = keypoints.conf[i].cpu().numpy() # Array of 4 confidences
-
-                for j in range(4):
-                    pred_x, pred_y = int(coords[j][0]), int(coords[j][1])
+                    corner_id = CORNER_ID_MAP.get(j)
+                    if corner_id is None:
+                        continue
+                    
+                    conf_val = float(confs[j]) if j < len(confs) else 0.0
+                    
                     corners.append(CornerDetection(
-                        corner_id=CORNER_ID_MAP[j],
-                        uv=np.array([pred_x, pred_y]),
-                        conf=confs[j]
+                        corner_id=corner_id,
+                        uv=np.array([float(p[0]), float(p[1])]),
+                        conf=conf_val
                     ))
-
-                detected_gates.append(corners)
+                    
+                # We also ensure we only append gates that actually have valid corners
+                if corners:
+                    detected_gates.append(corners)
 
         return detected_gates
 
@@ -530,7 +566,7 @@ class DetectionController:
         confidence = float(sum(weights[k] * scores[k] for k in weights))
         return True, confidence
 
-    def _get_zone(self, x, y):
+    def _get_zone(self, x, y) -> Optional[int]:
         """
         Returns the sector zone index (0-8) for a gate at room position (x, y),
         matching the 9 non-home sectors defined in the arena layout, or None if
@@ -540,6 +576,8 @@ class DetectionController:
         matching the gate_num assignment in draw_sector_guides_2d().
         Only even-indexed zones (0, 2, 4, 6, 8) are gate zones.
         """
+        # (TODO:5)
+
         if not self._in_world_bounds(np.array([x, y, 1.0])):
             return None
 
@@ -638,6 +676,41 @@ class DetectionController:
 
         return
 
+    def closed_loop_control(self, detections: list[list[CornerDetection]]) -> tuple[list, bool]:
+        """
+        Identifies the current gate candidate to pass through, sets waypoints.
+
+        Input:
+            - detections: A list of detected gates each represented as a list of CornerDetection objects.
+
+        Output:
+            - (x, y, z, yaw) new setpoint to fly towards
+            - boolean indicating whether we have a valid gate candidate to pass through
+        """
+
+        x, y, z = self.current_drone_xyz
+        _, _, yaw = self.current_drone_rpy
+
+        zone_id = self._get_zone(x, y)  # Nicolas will check this function, maybe talk with him what you prefer as output taking inaccuracy into account
+
+        print(f"{len(detections) if isinstance(detections, list) else 0} gates detected")
+
+        for det in detections if isinstance(detections, list) else []:
+            for cd in det:
+                # pixel coordinates: u_max, v_max = (244, 324)
+                u, v = cd.uv
+                # corner ID: BL, TL, TR, BR
+                corner_id = cd.corner_id
+
+                if corner_id == CornerID.BL:
+                    if self.debug_mode:
+                        print(f"Detected BL corner at pixel ({u:.1f}, {v:.1f}) with confidence {cd.conf:.2f}")
+
+        ### TODO:VINCENT ###
+
+        return [x, y, z, yaw], False
+
+
     def _clear_waypoints(self) -> None:
         """Clears current setpoint and queued waypoints."""
         self.current_setpoint = None
@@ -649,11 +722,15 @@ class DetectionController:
         return self.current_setpoint is None and self.setpoint_queue.empty()
 
     def set_control_command(self):
+        """
+        If the current setpoint is reached within tolerance, pops the next waypoint from the queue and sets it as the new setpoint.
+        However, the old setpoint will still be the command until the next frame.
+        """
 
         if self.current_setpoint is None:
             if self.setpoint_queue.empty():
                 # If no setpoint is set, just hover in place
-                return [self.current_sensor_data['x_global'], self.current_sensor_data['y_global'], self.current_sensor_data['z_global'], self.current_sensor_data['yaw']]
+                return [self.current_drone_xyz[0], self.current_drone_xyz[1], self.current_drone_xyz[2], self.current_drone_rpy[2]]
             else:
                 # Otherwise, get next waypoint from queue
                 self.current_setpoint = self.setpoint_queue.get()
@@ -662,8 +739,8 @@ class DetectionController:
         ctrl_cmd = [self.current_setpoint[0], self.current_setpoint[1], self.current_setpoint[2], self.current_setpoint[3]]
 
         # Check if we have reached the current waypoint, if so, get next waypoint from queue
-        dist_xyz_from_setpoint = np.linalg.norm(np.array(self.current_setpoint[:3]) - np.array([self.current_sensor_data['x_global'], self.current_sensor_data['y_global'], self.current_sensor_data['z_global']]))
-        diff_yaw_from_setpoint = abs(_add_angles(self.current_setpoint[3], -self.current_sensor_data['yaw']))
+        dist_xyz_from_setpoint = np.linalg.norm(np.array(self.current_setpoint[:3]) - np.array([self.current_drone_xyz[0], self.current_drone_xyz[1], self.current_drone_xyz[2]]))
+        diff_yaw_from_setpoint = abs(_add_angles(self.current_setpoint[3], -self.current_drone_rpy[2]))
         reached_position = dist_xyz_from_setpoint < self.position_tolerance
         reached_yaw = diff_yaw_from_setpoint < self.yaw_tolerance
 
@@ -671,12 +748,43 @@ class DetectionController:
             self.current_setpoint = self.setpoint_queue.get() if not self.setpoint_queue.empty() else None
 
         return ctrl_cmd
+    
+    def debug_visualization(self) -> None:
+
+        if self.camera_data is None:
+            return
+        
+        vis = self.camera_data.copy()
+
+        # Draw gate candidates with different colors based on state
+        for candidate in self.gate_candidates.values():
+            color = (0, 255, 0) if candidate.state == CandidateState.CONFIRMED else (0, 255, 255) if candidate.state == CandidateState.TRIANGULATING else (255, 0, 0)
+            for obs_list in candidate.observations.values():
+                for obs in obs_list:
+                    cv2.circle(vis, tuple(obs.uv.astype(int)), 5, color, -1)
+
+        # Draw detected gates
+        for gate in self.detected_gates.values():
+            for obs_list in gate.observations.values():
+                for obs in obs_list:
+                    cv2.circle(vis, tuple(obs.uv.astype(int)), 5, (0, 255, 0), -1)
+
+        # Visualize
+        cv2.imshow("Debug Visualization", vis)
+        cv2.waitKey(1)
+
+        pass
 
     def compute_command(self, sensor_data, camera_data, dt):
         """Process camera data and sensor data to compute control command"""
-        self.current_sensor_data = sensor_data
         self.current_timestamp += dt
         self.current_drone_xyz, self.current_drone_rpy = self._get_drone_pose(sensor_data)  # your FC/odometry
+
+        print(camera_data.shape)
+
+        if self.debug_mode:
+            self.debug_visualization()
+            self.camera_data = camera_data.copy()  # for visualization in debug mode
 
         ### TAKEOFF ###
         if self.state == DroneState.TAKEOFF:
@@ -704,6 +812,9 @@ class DetectionController:
                 self._clear_waypoints()
                 
                 ### TODO:1 SET WAYPOINTS FOR SEARCH PATTERN ###
+                # self.setpoint_queue.put([x1, y1, z1, yaw1])
+                # self.setpoint_queue.put([x2, y2, z2, yaw2])
+                # ...
 
                 self.set_path = True
 
@@ -719,6 +830,22 @@ class DetectionController:
 
                 if candidate.state == CandidateState.TRIANGULATING:
                     self.triangulate(candidate)
+
+                    if self.debug_mode:
+                        if candidate.corners_world:
+                            lines = [f"Candidate {i} triangulated corners (world):"]
+                            for cid in (CornerID.BL, CornerID.TL, CornerID.TR, CornerID.BR):
+                                pos = candidate.corners_world.get(cid)
+                                if pos is None:
+                                    lines.append(f"  {cid.name:>3}: None")
+                                else:
+                                    lines.append(f"  {cid.name:>3}: [{pos[0]:8.3f}, {pos[1]:8.3f}, {pos[2]:8.3f}]")
+                            if candidate.val_conf is not None:
+                                lines.append(f"  Validation confidence: {candidate.val_conf:.2f}")
+                            print("\n".join(lines))
+                        else:
+                            print(f"Candidate {i} triangulated corners (world): None")
+
                     if candidate.corners_world is None:
                         candidate.state = CandidateState.REJECTED
                     else:
@@ -747,24 +874,27 @@ class DetectionController:
                 # Track
                 self.track(camera_data)
 
-            # 3) (Optionaly) Adapt search pattern or hover point based on candidate distribution
-            if not self.set_path:
-                self._clear_waypoints()
-                # ((TODO:4)) SET WAYPOINTS
-                self.set_path = True
+            # 3) Closed loop control by Vincent
+            detections = self.detect(camera_data)
+            next_setpoint, is_gate = self.closed_loop_control(detections)
+            self.current_setpoint = next_setpoint
+
+            # 4) (Optional) Additional adaptation of search path or waypoints based on detections or tracking results
+            # ((TODO:4))
 
             # 4) Update prev_frame for tracking
             self.prev_frame = cv2.cvtColor(camera_data, cv2.COLOR_BGR2GRAY)
             self.prev_frame_timestamp = self.current_timestamp
 
             # 5) Exit condition for search state
-            if not self.detected_gates:
-
-                ### TODO:15 define exit condition
+            ### TODO:15 define exit condition for triangulation
+            if is_gate:
+                self._clear_waypoints() # clear search waypoints
+                self.current_setpoint = next_setpoint # set to current setpoint from closed-loop control
 
                 print("Gate(s) confirmed, transitioning to PASS_GATE.")
                 self.state = DroneState.PASS_GATE
-                self.set_path = False # reset for next state
+                self.set_path = True # we do not need to set the gate setpoints in the next state, as we already have a valid gate candidate and setpoint from closed-loop control
 
             pass
 
@@ -777,9 +907,20 @@ class DetectionController:
 
                 ### TODO:8 SELECT WHICH GATE TO PASS THROUGH ###
 
-                if not self.detected_gates.empty():
+                if self.detected_gates:
                     selected_gate = next(iter(self.detected_gates.values()))  # Select the first detected gate
                     self.set_path_through_gate(selected_gate)
+
+                    if self.debug_mode:
+                        # print all detected gates with their wworld coordinates and confidence
+                        for i, gate in self.detected_gates.items():
+                            print(f"Gate {i}:")
+                            if gate.corners_world:
+                                for cid, pos in gate.corners_world.items():
+                                    print(f"  {cid.name}: {pos}")
+                            else:
+                                print("  No world coordinates")
+                            print(f"  Validation confidence: {gate.val_conf:.2f}")
 
                 self.set_path = True
 
