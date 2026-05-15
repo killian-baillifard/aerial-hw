@@ -692,8 +692,9 @@ class DetectionController:
         _, _, yaw = self.current_drone_rpy
 
         zone_id = self._get_zone(x, y)  # Nicolas will check this function, maybe talk with him what you prefer as output taking inaccuracy into account
-
-        print(f"{len(detections) if isinstance(detections, list) else 0} gates detected")
+        
+        if self.debug_mode:
+            print(f"{len(detections) if isinstance(detections, list) else 0} gates detected")
 
         for det in detections if isinstance(detections, list) else []:
             for cd in det:
@@ -779,8 +780,6 @@ class DetectionController:
         """Process camera data and sensor data to compute control command"""
         self.current_timestamp += dt
         self.current_drone_xyz, self.current_drone_rpy = self._get_drone_pose(sensor_data)  # your FC/odometry
-
-        print(camera_data.shape)
 
         if self.debug_mode:
             self.debug_visualization()
