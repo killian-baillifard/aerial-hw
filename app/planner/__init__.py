@@ -20,7 +20,7 @@ class Planner(ABC):
         self.gates: list[Setpoint]      = []
         self.gate_found_event: Event[Setpoint] = Event[Setpoint]()
 
-    def reach(setpoint: Setpoint, measurement: Measurement) -> tuple[Setpoint, bool]:
+    def reach(setpoint: Setpoint, measurement: Measurement, speed: float = 1.0) -> tuple[Setpoint, bool]:
         """
         Interpolate a new setpoint between current measurement and target setpoint
 
@@ -54,7 +54,7 @@ class Planner(ABC):
             return Setpoint(measurement.position, target_heading), False
 
         # Advance toward target
-        direction   = glm.normalize(error.xy) if dist_xy > 1.0 else error.xy
+        direction   = speed * glm.normalize(error.xy) if dist_xy > speed else error.xy
         position    = glm.vec3(measurement.position.xy + direction, setpoint.position.z)
         loc_reached = dist_xy < Planner.POS_TOL
         if not loc_reached:

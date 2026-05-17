@@ -28,8 +28,8 @@ class App:
         self.planners: dict[str, Planner] = {
             "SCAN1": ScanPlanner(),
             "SCAN2": ScanPlanner(),
-            "RACE1": RacePlanner(),
-            "RACE2": RacePlanner()
+            "RACE1": RacePlanner(speed=0.25),
+            "RACE2": RacePlanner(speed=1.0)
         }
         self.selected_planner = next(iter(self.planners))
 

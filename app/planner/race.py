@@ -13,8 +13,9 @@ class RacePlanner(Planner):
 
     GATES_DIRECTORY = "gates"
 
-    def __init__(self):
+    def __init__(self, speed: float = 1.0):
         super().__init__()
+        self.speed = speed
 
     @overrides
     def reload(self) -> None:
@@ -61,7 +62,7 @@ class RacePlanner(Planner):
             return RacePlanner.HOME_SETPOINT
         
         # Until waypoint is reached, return interpolated setpoint
-        setpoint, reached = Planner.reach(self.waypoints[0], measurement)
+        setpoint, reached = Planner.reach(self.waypoints[0], measurement, self.speed)
         if not reached:
             return setpoint
         
