@@ -17,21 +17,7 @@ class Image(Widget):
     def __del__(self) -> None:
         super().__del__()
 
-    def set_color_image(self, surface: Surface):
-
-        # Get image dimensions
-        w = surface.get_width()
-        h = surface.get_height()
-
-        # Compute scale factor that maximizes fill while preserving aspect ratio
-        scale = min(self.rect.width / w, self.rect.height / h)
-        new_w = int(w * scale)
-        new_h = int(h * scale)
-
-        # Save new image
-        self.image = transform.scale(surface, (new_w, new_h))
-
-    def set_grayscale_image(self, surface: Surface):
+    def set_image(self, surface: Surface):
 
         # Get image dimensions
         w = surface.get_width()

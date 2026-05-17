@@ -1,11 +1,13 @@
 import time
 from app import *
 from app.gui import Gui
+from app.gui.audio import Audio
 from app.io import Command
 from app.io.controller import Controller
 from app.io.keyboard import Keyboard
-from app.telemetry import Telemetry, TelemetryFlags
-from app.planner.example import ExamplePlanner
+from app.telemetry import Telemetry
+from app.planner.scan import ScanPlanner
+from app.planner.race import RacePlanner
 from app.telemetry.recorder import Recorder
 
 class App:
@@ -21,20 +23,28 @@ class App:
         self.keyboard       = Keyboard()
         self.telemetry      = Telemetry(self.gui.layout.scene.overlay)
         self.recorder       = Recorder()
-        self.scan_planner   = ExamplePlanner()
-        self.race_planner   = ExamplePlanner()
+        self.scan_planner   = ScanPlanner()
+        self.race_planner   = RacePlanner()
         self.flight_status  = FlightStatus.LANDED
 
         # Initialize event handlers
-        self.gui.connect_event              += self.telemetry.connect
-        self.gui.disconnect_event           += self.telemetry.disconnect
-        self.gui.tkof_event                 += self.tkof_event_handler
-        self.gui.land_event                 += self.land_event_handler
-        self.gui.start_recording_event      += self.recorder.start_recording
-        self.gui.stop_recording_event       += self.recorder.stop_recording
-        self.gui.manual_controls_event      += self.manual_controls_event_handler
-        self.telemetry.connected_event      += self.gui.connected
-        self.telemetry.disconnected_event   += self.gui.disconnected
+        self.gui.connect_radio_event            += self.telemetry.on_connect_radio
+        self.gui.disconnect_radio_event         += self.telemetry.on_disconnect_radio
+        self.gui.connect_wifi_event             += self.telemetry.on_connect_wifi
+        self.gui.disconnect_wifi_event          += self.telemetry.on_disconnect_wifi
+        self.gui.enable_sim_event               += self.telemetry.on_enable_sim
+        self.gui.disable_sim_event              += self.telemetry.on_disable_sim
+        self.telemetry.radio_connected_event    += self.gui.on_radio_connected
+        self.telemetry.radio_disconnected_event += self.gui.on_radio_disconnected
+        self.telemetry.wifi_connected_event     += self.gui.on_wifi_connected
+        self.telemetry.wifi_disconnected_event  += self.gui.on_wifi_disconnected
+        self.gui.manual_cmd_selected_event      += self.manual_cmd_selected_event_handler
+        self.gui.planner_selected_event         += self.planner_selected_event_handler
+        self.gui.tkof_event                     += self.tkof_event_handler
+        self.gui.land_event                     += self.land_event_handler
+        self.gui.start_recording_event          += self.recorder.start_recording
+        self.gui.stop_recording_event           += self.recorder.stop_recording
+        self.scan_planner.gate_found_event      += self.gui.layout.scene.add_gate
 
     def tkof_event_handler(self) -> None:
         self.flight_status = FlightStatus.TKOF
@@ -42,8 +52,18 @@ class App:
     def land_event_handler(self) -> None:
         self.flight_status = FlightStatus.LAND
 
-    def manual_controls_event_handler(self) -> None:
+    def manual_cmd_selected_event_handler(self, source: CommandSource) -> None:
         self.telemetry.z = self.telemetry.measurement.read().position.z
+
+    def planner_selected_event_handler(self, stage: PlanStage) -> None:
+        self.gui.layout.scene.gates.clear()
+        match stage:
+            case PlanStage.SCAN:
+                self.scan_planner.reload()
+            case PlanStage.RACE:
+                self.race_planner.reload()
+                for gate in self.race_planner.gates:
+                    self.gui.layout.scene.add_gate(gate)
 
     def run(self) -> None:
         quit: bool      = False
@@ -62,14 +82,31 @@ class App:
             # Read telemetry
             measurement, new_measurement = self.telemetry.measurement.get()
             frame, new_frame = self.telemetry.frame.get()
-            flags = TelemetryFlags.NEITHER
+            flags = Telemetry.Flags.NEITHER
             if new_measurement:
-                flags |= TelemetryFlags.NEW_MEASUREMENT
+                flags |= Telemetry.Flags.NEW_MEASUREMENT
                 self.gui.update_measurement_indicators(measurement)
             if new_frame:
-                flags |= TelemetryFlags.NEW_FRAME
+                flags |= Telemetry.Flags.NEW_FRAME
                 self.gui.update_camera_image(frame)
                 self.recorder.record(measurement, frame)
+
+            # Select command source
+            match self.gui.command_source:
+                case CommandSource.KEYBOARD:
+                    command = self.keyboard
+                case CommandSource.CONTROLLER:
+                    command = self.controller
+                case _:
+                    command = Command()
+            command.update(dt)
+
+            # Select planner stage
+            match self.gui.plan_stage:
+                case PlanStage.SCAN:
+                    planner = self.scan_planner
+                case PlanStage.RACE:
+                    planner = self.race_planner
 
             # Compute command / setpoint
             match self.flight_status:
@@ -80,36 +117,35 @@ class App:
                 case FlightStatus.TKOF:
                     if self.telemetry.tkof(dt):
                         self.flight_status = FlightStatus.AIRBORN
-                        self.gui.airborn()
-
+                        self.telemetry.z = self.telemetry.measurement.read().position.z
+                        self.gui.on_airborn()
+                
                 case FlightStatus.AIRBORN:
                     match self.gui.control_mode:
                         case ControlMode.MANUAL:
-                            match self.gui.input_source:
-                                case CommandSource.KEYBOARD:
-                                    self.keyboard.update(dt)
-                                    self.telemetry.send_command(self.keyboard, dt)
-                                case CommandSource.CONTROLLER:
-                                    self.controller.update(dt)
-                                    self.telemetry.send_command(self.controller, dt)
+                            self.telemetry.send_command(command, dt)
                         case ControlMode.PLANNER:
-                            match self.gui.lap_type:
-                                case PlanStage.SCAN:
-                                        self.telemetry.send_setpoint(self.scan_planner.update(measurement, frame, flags, dt), dt)
-                                case PlanStage.RACE:
-                                    self.telemetry.send_setpoint(self.race_planner.update(measurement, frame, flags, dt), dt)
+                            setpoint = planner.update(measurement, frame, flags, dt)
+                            self.telemetry.send_setpoint(setpoint, dt)
                 
                 case FlightStatus.LAND:
                     if self.telemetry.land(dt):
                         self.flight_status = FlightStatus.LANDED
-                        self.gui.landed()
+                        self.telemetry.z = self.telemetry.measurement.read().position.z
+                        self.gui.on_landed()
+
+            # Capture gates positions and yaw when capture button is pressed
+            if command.capture:
+                self.recorder.add_gate(measurement)
+                self.gui.audio.play(Audio.Track.SHUTTER)
+                self.gui.layout.shutter_indicator.trigger()
 
             # Update GUI
             self.gui.update_command_indicators(self.telemetry.command)
             self.gui.render(dt)
             quit = self.gui.poll_events()
         
-        self.gui.quit()
+        self.gui.on_quit()
 
 if __name__ == "__main__":
     app = App()

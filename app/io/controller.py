@@ -14,6 +14,7 @@ class Controller(Command):
     def __init__(self) -> None:
         super().__init__()
         self.joystick = None
+        self.last_a = False
 
     @override
     def update(self, dt: float) -> None:
@@ -44,6 +45,11 @@ class Controller(Command):
             self.velocity.xy = velocity
             self.velocity.z = climb_rate
             self.yaw_rate = yaw_rate * Command.YAW_RATE
+
+            # Detect capture button press
+            a = self.joystick.get_button(Controller.BUTTONS_MAPPING['A'])
+            self.capture = a and not self.last_a
+            self.last_a = a
 
         elif self.joystick is not None:
             self.joystick = None
