@@ -7,13 +7,11 @@ from app.io import Measurement
 from app.io import Setpoint
 from app.planner import Planner
 from app.telemetry import Telemetry
-from app.generics import Event
 
 class ScanPlanner(Planner):
 
     def __init__(self):
         super().__init__()
-        self.gate_found_event: Event[Setpoint] = Event[Setpoint]()
 
     @overrides
     def reload(self) -> None:

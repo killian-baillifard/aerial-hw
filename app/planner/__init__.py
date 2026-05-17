@@ -2,6 +2,7 @@ import numpy as np
 from pyglm import glm
 from abc import ABC, abstractmethod
 from cv2.typing import MatLike
+from app.generics import Event
 from app.io import Measurement
 from app.io import Setpoint
 from app import wrap
@@ -17,6 +18,7 @@ class Planner(ABC):
     def __init__(self):
         self.waypoints: list[Setpoint]  = []
         self.gates: list[Setpoint]      = []
+        self.gate_found_event: Event[Setpoint] = Event[Setpoint]()
 
     def reach(setpoint: Setpoint, measurement: Measurement) -> tuple[Setpoint, bool]:
         """

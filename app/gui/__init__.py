@@ -3,7 +3,7 @@ import numpy as np
 from threading import Lock
 from cv2.typing import MatLike
 from pyglm import glm
-from app import PlanStage, ControlMode, CommandSource
+from app import ControlMode, CommandSource
 from app.generics import Event
 from app.gui.widgets import Widget
 from app.gui.layout import Layout
@@ -43,8 +43,8 @@ class Gui:
         self.disconnect_radio_event: Event = Event()
         self.disconnect_wifi_event: Event = Event()
         self.disable_sim_event: Event = Event()
-        self.manual_cmd_selected_event: Event[CommandSource] = Event[CommandSource]()
-        self.planner_selected_event: Event[PlanStage] = Event[PlanStage]()
+        self.mode_changed_event: Event[ControlMode] = Event[ControlMode]()
+        self.planner_changed_event: Event = Event()
         self.tkof_event: Event = Event()
         self.land_event: Event = Event()
         self.start_recording_event: Event = Event()
@@ -65,7 +65,6 @@ class Gui:
         self.lock = Lock()
         self.control_mode = ControlMode.MANUAL
         self.command_source = CommandSource.CONTROLLER
-        self.plan_stage = PlanStage.SCAN
 
     #------------------------------ #
     #   GUI update functions        #
@@ -152,11 +151,11 @@ class Gui:
 
     def update_control_mode_and_source(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
+        self.mode_changed_event(self.control_mode)
         match self.control_mode:
             case ControlMode.MANUAL:
                 self.layout.mode_btn.set_text("MODE [MAN]")
                 self.layout.plan_btn.disable()
-                self.manual_cmd_selected_event(self.command_source)
                 match self.command_source:
                     case CommandSource.KEYBOARD:
                         self.layout.source_btn.set_text("KEYBOARD")
@@ -165,12 +164,6 @@ class Gui:
             case ControlMode.PLANNER:
                 self.layout.mode_btn.set_text("MODE [PLAN]")
                 self.layout.plan_btn.enable()
-                self.planner_selected_event(self.plan_stage)
-                match self.plan_stage:
-                    case PlanStage.SCAN:
-                        self.layout.source_btn.set_text("STAGE [SCAN]")
-                    case PlanStage.RACE:
-                        self.layout.source_btn.set_text("STAGE [RACE]")
 
     def mode_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)
@@ -191,11 +184,7 @@ class Gui:
                     case CommandSource.CONTROLLER:
                         self.command_source = CommandSource.KEYBOARD
             case ControlMode.PLANNER:
-                match self.plan_stage:
-                    case PlanStage.SCAN:
-                        self.plan_stage = PlanStage.RACE
-                    case PlanStage.RACE:
-                        self.plan_stage = PlanStage.SCAN
+                self.planner_changed_event()
         self.update_control_mode_and_source()
 
     def plan_btn_click_handler(self) -> None:

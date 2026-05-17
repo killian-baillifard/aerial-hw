@@ -15,7 +15,7 @@ class Layout:
     WINDOW_WIDTH = 1280
     WINDOW_HEIGHT = 720
     MARGIN = 10
-    BTN_WIDTH = 130
+    BTN_WIDTH = 132
     LABEL_WIDTH = 200
     TOP_BAR = 30
     BOTTOM_BAR = 30
@@ -26,7 +26,7 @@ class Layout:
     def __init__(self) -> None:
 
         # Top bar
-        x = Layout.MARGIN
+        x = Layout.MARGIN / 2
         self.radio_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "RADIO [OFF]", Layout.BTN_WIDTH)
         x += Layout.BTN_WIDTH + Layout.MARGIN
         self.wifi_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "WIFI [OFF]", Layout.BTN_WIDTH)
