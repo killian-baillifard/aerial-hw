@@ -125,8 +125,9 @@ class App:
                         case ControlMode.MANUAL:
                             self.telemetry.send_command(command, dt)
                         case ControlMode.PLANNER:
-                            setpoint = planner.update(measurement, frame, flags, dt)
-                            self.telemetry.send_setpoint(setpoint, dt)
+                            if self.gui.layout.plan_btn.latched:
+                                setpoint = planner.update(measurement, frame, flags, dt)
+                                self.telemetry.send_setpoint(setpoint, dt)
                 
                 case FlightStatus.LAND:
                     if self.telemetry.land(dt):

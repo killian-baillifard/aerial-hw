@@ -56,6 +56,7 @@ class Gui:
         self.layout.sim_btn.release_event       += self.sim_btn_click_handler
         self.layout.mode_btn.release_event      += self.mode_btn_click_handler
         self.layout.source_btn.release_event    += self.source_btn_click_handler
+        self.layout.plan_btn.release_event      += self.plan_btn_click_handler
         self.layout.vws_btn.release_event       += self.vws_btn_click_handler
         self.layout.tkof_land_btn.release_event += self.tkof_land_btn_click_handler
         self.layout.rec_btn.release_event       += self.rec_btn_click_handler
@@ -154,6 +155,7 @@ class Gui:
         match self.control_mode:
             case ControlMode.MANUAL:
                 self.layout.mode_btn.set_text("MODE [MAN]")
+                self.layout.plan_btn.disable()
                 self.manual_cmd_selected_event(self.command_source)
                 match self.command_source:
                     case CommandSource.KEYBOARD:
@@ -162,6 +164,7 @@ class Gui:
                         self.layout.source_btn.set_text("CONTROLLER")
             case ControlMode.PLANNER:
                 self.layout.mode_btn.set_text("MODE [PLAN]")
+                self.layout.plan_btn.enable()
                 self.planner_selected_event(self.plan_stage)
                 match self.plan_stage:
                     case PlanStage.SCAN:
@@ -194,6 +197,16 @@ class Gui:
                     case PlanStage.RACE:
                         self.plan_stage = PlanStage.SCAN
         self.update_control_mode_and_source()
+
+    def plan_btn_click_handler(self) -> None:
+        if self.layout.plan_btn.latched:
+            self.layout.plan_btn.set_text("PLAN [ON]")
+            self.layout.mode_btn.disable()
+            self.layout.source_btn.disable()
+        else:
+            self.layout.plan_btn.set_text("PLAN [OFF]")
+            self.layout.mode_btn.enable()
+            self.layout.source_btn.enable()
 
     def vws_btn_click_handler(self) -> None:
         self.audio.play(Audio.Track.BUTTON)

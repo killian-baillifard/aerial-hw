@@ -15,7 +15,7 @@ class Layout:
     WINDOW_WIDTH = 1280
     WINDOW_HEIGHT = 720
     MARGIN = 10
-    BTN_WIDTH = 140
+    BTN_WIDTH = 130
     LABEL_WIDTH = 200
     TOP_BAR = 30
     BOTTOM_BAR = 30
@@ -36,6 +36,8 @@ class Layout:
         self.mode_btn = Button(glm.uvec2(x, Layout.MARGIN), "MODE [MAN]", Layout.BTN_WIDTH)
         x += Layout.BTN_WIDTH + Layout.MARGIN
         self.source_btn = Button(glm.uvec2(x, Layout.MARGIN), "CONTROLLER", Layout.BTN_WIDTH)
+        x += Layout.BTN_WIDTH + Layout.MARGIN
+        self.plan_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "PLAN [OFF]", Layout.BTN_WIDTH, disabled=True)
         x += Layout.BTN_WIDTH + Layout.MARGIN
         self.vws_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "VOICE [ON]", Layout.BTN_WIDTH, latched=True)
         x += Layout.BTN_WIDTH + Layout.MARGIN
