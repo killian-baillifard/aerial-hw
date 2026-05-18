@@ -2,7 +2,8 @@
 # mport DetectionController and run control command function for each frame
 import cv2
 import pandas as pd
-import detection_controller as DC
+import detection_controller_Vincent as DC
+#import os
 
 def test_wrapper(video_path, csv_path):
 
@@ -36,11 +37,11 @@ def test_wrapper(video_path, csv_path):
             previous_time = row['timestamp']
 
             # Call the control command function with the extracted data
-            DC.get_command(sensor_data, frame, dt)
+            print("get_command", DC.get_command(sensor_data, frame, dt))
 
         # wait for a short period to simulate real-time processing (optional)
-        cv2.waitKey(1000) 
-        # cv2.waitKey(333)  # Adjust the delay as needed - 333 ms simulates ~3 FPS
+        #cv2.waitKey(1000) 
+        cv2.waitKey(333)  # Adjust the delay as needed - 333 ms simulates ~3 FPS
 
         frame_index += 1
 
@@ -53,4 +54,10 @@ if __name__ == "__main__":
 
     video_path = '../saved_recordings/2026-05-13-14-55-19.avi'
     csv_path = '../saved_recordings/2026-05-13-14-55-19.csv'
+
+    #script_dir = os.path.dirname(os.path.abspath(__file__))
+    #video_path = os.path.join(script_dir, r"..\saved_recordings\2026-05-13-14-55-19.avi")
+    #csv_path = os.path.join(script_dir, r"..\saved_recordings\2026-05-13-14-55-19.csv")
+
     test_wrapper(video_path, csv_path)
+
