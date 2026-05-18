@@ -53,6 +53,7 @@ class App:
         self.gui.stop_recording_event           += self.recorder.stop_recording
         for _, planner in self.planners.items():
             planner.gate_found_event            += self.gui.layout.scene.add_gate
+            planner.gates_detected_event        += self.gui.layout.scene.new_gates_points
 
     def tkof_event_handler(self) -> None:
         self.flight_status = FlightStatus.TKOF
@@ -79,7 +80,7 @@ class App:
         # Reload planner and show initialized gates
         self.gui.layout.source_btn.set_text(self.selected_planner)
         self.planners[self.selected_planner].reload()
-        self.gui.layout.scene.gates.clear()
+        self.gui.layout.scene.gates_mesh.clear()
         for gate in self.planners[self.selected_planner].gates:
             self.gui.layout.scene.add_gate(gate)
 

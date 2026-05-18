@@ -8,6 +8,7 @@ from app.io import Measurement
 from app.io import Setpoint
 from app.planner import Planner
 from app.telemetry import Telemetry
+from app.telemetry.gate import Gate
 from ultralytics import YOLO
 
 MODEL_PATH = os.path.join("controller_detection", "detection_model", "models", "yolov8n_v2bw_r1", "weights", "best.pt")
@@ -25,11 +26,6 @@ class ScanPlanner(Planner):
         # Fill waypoints with all scan positions
         self.waypoints.clear()
         self.waypoints.append(ScanPlanner.HOME_SETPOINT)
-
-    def run_inference(self, frame: MatLike) -> None:
-        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
-        predictions = self.model.predict(frame, conf=0.5, iou=0.7, verbose=False)
-        print(predictions)
 
     @overrides
     def update(self, measurement: Measurement, frame: MatLike, flags: Telemetry.Flags, dt: float) -> Setpoint:
@@ -52,3 +48,23 @@ class ScanPlanner(Planner):
         # self.waypoints.pop(0)
         # return self.update(measurement, frame, flags, dt)
         return Planner.HOME_SETPOINT 
+
+    def run_inference(self, frame: MatLike) -> None:
+
+        # Run inference on frame
+        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
+        predictions = self.model.predict(frame, conf=0.5, iou=0.7, verbose=False)
+
+        # Expect only one prediction
+        if len(predictions) < 1 or 1 < len(predictions):
+            return
+
+        # Expect result to contain a keypoints attribute
+        prediction = predictions[0]
+        if not hasattr(prediction, "keypoints"):
+            return
+        
+        # Build gates from keypoints
+        keypoints = prediction.keypoints.cpu().numpy()
+        gates = [Gate(corners) for corners in keypoints.xy]
+        self.gates_detected_event(gates)

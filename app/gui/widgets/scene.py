@@ -7,6 +7,7 @@ from overrides import override
 from app.gui.widgets import Widget
 from app.io import Setpoint
 from app.telemetry.camera import Line, Mesh, view, euler_to_quaternion, WIDTH as CAM_W, HEIGHT as CAM_H
+from app.telemetry.gate import Gate
 
 class Scene(Widget):
 
@@ -55,7 +56,8 @@ class Scene(Widget):
         self.sectors = Mesh(sectors_vertices, sectors_indices)
 
         # Create empty gates
-        self.gates: list[Mesh] = []
+        self.gates_mesh: list[Mesh] = []
+        self.gates_detection_overlay: list[Gate] = []
 
         # Create empty lines to draw
         self.lines_to_draw: list[Line] = []
@@ -89,17 +91,35 @@ class Scene(Widget):
             (0, 4),
             (3, 5)
         ]
-        self.gates.append(Mesh(world_vertices, indices))            
+        self.gates_mesh.append(Mesh(world_vertices, indices))
+
+    def new_gates_points(self, gates: list[Gate]) -> None:
+        self.gates_detection_overlay = gates
 
     def set_view(self, position: glm.vec3, rotation: glm.vec3):
         view_matrix = view(position, euler_to_quaternion(rotation))
         self.lines_to_draw.clear()
         self.lines_to_draw = self.room.project(view_matrix) + self.sectors.project(view_matrix)
-        for gate_mesh in self.gates:
+        for gate_mesh in self.gates_mesh:
             self.lines_to_draw += gate_mesh.project(view_matrix)
 
     @override
     def draw(self, surface: Surface) -> None:
+
+        # Compute gates detection overlay
+        for gate in self.gates_detection_overlay:
+            gui_coords: list[glm.uvec2] = []
+            for corner in gate.corners:
+                scaled_frame_coords = self.scale * corner
+                frame_coords = glm.uvec2(scaled_frame_coords.x, scaled_frame_coords.y)
+                gui_coords.append(self.offset + frame_coords)
+                draw.circle(surface, Scene.COLOR, gui_coords[-1], 6)
+            for i in range(4):
+                begin = gui_coords[i]
+                end = gui_coords[(i + 1) % 4]
+                draw.line(surface, Scene.COLOR, begin, end, 14)
+
+        # Draw meshes
         for line in self.lines_to_draw:
             scaled_begin = self.scale * line.begin
             scaled_end = self.scale * line.end

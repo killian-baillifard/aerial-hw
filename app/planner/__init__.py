@@ -7,6 +7,7 @@ from app.io import Measurement
 from app.io import Setpoint
 from app import wrap
 from app.telemetry import Telemetry
+from app.telemetry.gate import Gate
 
 class Planner(ABC):
 
@@ -19,6 +20,7 @@ class Planner(ABC):
         self.waypoints: list[Setpoint]  = []
         self.gates: list[Setpoint]      = []
         self.gate_found_event: Event[Setpoint] = Event[Setpoint]()
+        self.gates_detected_event: Event[list[Gate]] = Event[list[Gate]]()
 
     def reach(setpoint: Setpoint, measurement: Measurement, speed: float = 1.0) -> tuple[Setpoint, bool]:
         """
