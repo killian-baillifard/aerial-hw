@@ -1,6 +1,7 @@
 import os, cv2
 from enum import Enum
 import numpy as np
+from pyglm import glm
 from cv2.typing import MatLike
 from overrides import overrides
 from app import wrap
@@ -9,6 +10,7 @@ from app.io import Setpoint
 from app.planner import Planner
 from app.telemetry import Telemetry
 from app.telemetry.gate import Gate
+from app.telemetry.camera import UP, world2clip, clip2screen, CLIP_PLANES, WIDTH, HEIGHT, view, euler_to_quaternion
 from ultralytics import YOLO
 
 MODEL_PATH = os.path.join("controller_detection", "detection_model", "models", "yolov8n_v2bw_r1", "weights", "best.pt")
@@ -20,13 +22,25 @@ class Scan(Planner):
     class State(Enum):
         REACH_WAYPOINT = 0
         FIND_GATE = 1
+        END = 2
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.model = YOLO(MODEL_PATH)
         self.model.eval()
         self.waypoints.append(Scan.INITIAL_SETPOINT)
         self.state = Scan.State.REACH_WAYPOINT
+        self.load_sim()
+
+    def load_sim(self) -> None:
+        gates_directory = os.path.join("gates")
+        file_name = os.listdir(gates_directory)[0]
+        file_path = os.path.join(gates_directory, file_name)
+        raw_csv_data: np.ndarray    = np.genfromtxt(file_path, delimiter=',')[1:]
+        if not any(np.isnan(raw_csv_data[0])):
+            positions: list[glm.vec3]   = [glm.vec3(col[1], col[2], col[3]) for col in raw_csv_data]
+            yaws: list[float]           = [wrap(col[4]) for col in raw_csv_data]
+            self.sim_gates              = [Setpoint(position, yaw) for position, yaw in zip(positions, yaws)]
 
     @overrides
     def reload(self) -> None:
@@ -43,7 +57,7 @@ class Scan(Planner):
 
         # Run inference on each incoming image (for visualization purposes)
         if Telemetry.Flags.NEW_FRAME in flags:
-            gates = self.find_gates(frame, measurement)
+            gates = self.find_gates(frame, measurement, flags)
             self.gates_detected_event(gates)
         else:
             gates = []
@@ -62,7 +76,9 @@ class Scan(Planner):
                     
                     # All gates have been crossed, return home
                     else:
-                        return Planner.HOME_SETPOINT
+                        self.waypoints.append(Planner.HOME_SETPOINT)
+                        self.state = Scan.State.END
+                        return self.update(measurement, frame, flags, dt)
 
                 # Waypoint not reached yet, keep going
                 else:
@@ -77,16 +93,12 @@ class Scan(Planner):
                     gate = gates[0]
 
                     # Compute next waypoint
-                    next_yaw = wrap(self.waypoints[-1].yaw + np.deg2rad(45))
+                    next_yaw = wrap(self.waypoints[-1].yaw + np.deg2rad(60))
                     next_setpoint = Setpoint(gate.position, next_yaw)
 
                     # Append it to lists
                     self.gates.append(next_setpoint)
                     self.waypoints.append(next_setpoint)
-
-                    # Fire GUI events
-                    self.gates_detected_event([gate])
-                    self.gate_found_event(next_setpoint)
 
                     # Reach gate center
                     self.state = Scan.State.REACH_WAYPOINT
@@ -95,25 +107,64 @@ class Scan(Planner):
                 # Gate not found, stay static
                 else:
                     return setpoint
+                
+            case Scan.State.END:
+                return setpoint
 
-    def find_gates(self, frame: MatLike, measurement: Measurement) -> list[Gate]:
+    def find_gates(self, frame: MatLike, measurement: Measurement, flags: Telemetry.Flags) -> list[Gate]:
+
+        # If in simulation mode, project gates stored in file onto screen
+        if Telemetry.Flags.SIMULATION in flags:
+            gates_points = []
+            v = view(measurement.position, euler_to_quaternion(measurement.rotation))
+            for gate in self.sim_gates:
+
+                # Skip gates not facing camera
+                if np.abs(wrap(measurement.rotation.z - gate.yaw)) > np.pi / 2:
+                    continue
+
+                # Compute corners in world space assuming fixed gates size
+                normal = glm.vec3(np.cos(gate.yaw), np.sin(gate.yaw), 0.0)
+                right = np.cross(UP, normal)
+                size = Gate.HEIGHT / 2
+                world = [
+                    gate.position - size * UP - size * right,
+                    gate.position - size * UP + size * right,
+                    gate.position + size * UP + size * right,
+                    gate.position + size * UP - size * right
+                ]
+
+                # Transform to clip space and cull gates outside screen
+                clip = world2clip(v, world)
+                if sum(any(plane(c) < 0 for plane in CLIP_PLANES) for c in clip) >= 1:
+                    continue
+                
+                # Transform gates to screen space and clamp them to border if necessary
+                screen = [clip2screen(x) for x in clip]
+                screen = [glm.clamp(s, glm.vec2(0.0, 0.0), glm.vec2(WIDTH, HEIGHT)) for s in screen]
+                gates_points.append(screen)
+
+            gates_points = np.array(gates_points)
 
         # Run inference on frame
-        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
-        predictions = self.model.predict(frame, conf=0.5, iou=0.7, verbose=False)
+        else:
+            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
+            predictions = self.model.predict(frame, conf=0.5, iou=0.7, verbose=False)
 
-        # Expect only one prediction
-        if len(predictions) < 1 or 1 < len(predictions):
-            return []
+            # Expect only one prediction
+            if len(predictions) < 1 or 1 < len(predictions):
+                return []
 
-        # Expect result to contain a keypoints attribute
-        prediction = predictions[0]
-        if not hasattr(prediction, "keypoints"):
-            return []
-        
-        # Expect at least one keypoint
-        keypoints = prediction.keypoints.cpu()
-        gates_points = keypoints.xy.numpy()
+            # Expect result to contain a keypoints attribute
+            prediction = predictions[0]
+            if not hasattr(prediction, "keypoints"):
+                return []
+            
+            # Expect at least one keypoint
+            keypoints = prediction.keypoints.cpu()
+            gates_points = keypoints.xy.numpy()
+
+        # Skip if no gates
         if gates_points.size == 0:
             self.gates_detected_event([])
             return []

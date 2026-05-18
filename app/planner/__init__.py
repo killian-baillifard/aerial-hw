@@ -16,7 +16,7 @@ class Planner(ABC):
     HOME_SETPOINT   = Setpoint(HOME_POSITION, HOME_YAW)
     APPROACH_DIST   = 0.20          # m
     POS_TOL         = 0.10          # m
-    YAW_TOL         = np.pi / 6    # radians
+    YAW_TOL         = np.pi / 10    # radians
 
     def __init__(self):
         self.waypoints: list[Setpoint]  = []

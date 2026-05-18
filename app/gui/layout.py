@@ -41,7 +41,7 @@ class Layout:
         x += Layout.BTN_WIDTH + Layout.MARGIN
         self.vws_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "VWS [ON]", Layout.BTN_WIDTH, latched=True)
         x += Layout.BTN_WIDTH + Layout.MARGIN
-        self.tkof_land_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "LND", Layout.BTN_WIDTH, disabled=True)
+        self.tkof_land_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "GND", Layout.BTN_WIDTH, disabled=True)
         x += Layout.BTN_WIDTH + Layout.MARGIN
         self.rec_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "REC [OFF]", Layout.BTN_WIDTH)
         x += Layout.BTN_WIDTH + Layout.MARGIN

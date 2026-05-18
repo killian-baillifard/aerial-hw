@@ -117,6 +117,8 @@ class App:
                 flags |= Telemetry.Flags.NEW_FRAME
                 self.gui.update_camera_image(frame)
                 self.recorder.record(measurement, frame)
+            if self.telemetry.sim_enabled.get():
+                flags |= Telemetry.Flags.SIMULATION
 
             # Select manual command source
             match self.gui.command_source:
