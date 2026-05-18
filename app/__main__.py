@@ -10,6 +10,7 @@ from app.planner import Planner
 from app.planner.scan import ScanPlanner
 from app.planner.race import RacePlanner
 from app.telemetry.recorder import Recorder
+from app.telemetry.playback import Playback
 
 class App:
 
@@ -24,12 +25,12 @@ class App:
         self.keyboard       = Keyboard()
         self.telemetry      = Telemetry(self.gui.layout.scene.overlay)
         self.recorder       = Recorder()
+        self.playback       = Playback("2026-05-13-14-52-04")
         self.flight_status  = FlightStatus.LANDED
         self.planners: dict[str, Planner] = {
-            "SCAN1": ScanPlanner(),
-            "SCAN2": ScanPlanner(),
-            "RACE1": RacePlanner(speed=0.25),
-            "RACE2": RacePlanner(speed=1.0)
+            "SCAN": ScanPlanner(),
+            "RACE SLOW": RacePlanner(speed=0.25),
+            "RACE FAST": RacePlanner(speed=1.0)
         }
         self.selected_planner = next(iter(self.planners))
 
@@ -97,8 +98,16 @@ class App:
             old_t = new_t
 
             # Read telemetry
-            measurement, new_measurement = self.telemetry.measurement.get()
-            frame, new_frame = self.telemetry.frame.get()
+
+            if self.gui.layout.playback_btn.latched:
+                self.playback.step(dt)
+                measurement, new_measurement = self.playback.measurement.get()
+                frame, new_frame = self.playback.frame.get()
+            else:
+                self.playback.reset()
+                measurement, new_measurement = self.telemetry.measurement.get()
+                frame, new_frame = self.telemetry.frame.get()
+
             flags = Telemetry.Flags.NEITHER
             if new_measurement:
                 flags |= Telemetry.Flags.NEW_MEASUREMENT
@@ -108,7 +117,7 @@ class App:
                 self.gui.update_camera_image(frame)
                 self.recorder.record(measurement, frame)
 
-            # Select command source
+            # Select manual command source
             match self.gui.command_source:
                 case CommandSource.KEYBOARD:
                     command = self.keyboard
@@ -119,37 +128,40 @@ class App:
             command.update(dt)
 
             # Compute command / setpoint
-            match self.flight_status:
+            if self.gui.layout.playback_btn.latched and self.gui.layout.plan_btn.latched:
+                self.planners[self.selected_planner].update(measurement, frame, flags, dt)
+            else:
+                match self.flight_status:
 
-                case FlightStatus.LANDED:
-                    self.telemetry.command = Command()
+                    case FlightStatus.LANDED:
+                        self.telemetry.command = Command()
 
-                case FlightStatus.TKOF:
-                    if self.telemetry.tkof(dt):
-                        self.flight_status = FlightStatus.AIRBORN
-                        self.telemetry.z = self.telemetry.measurement.read().position.z
-                        self.gui.on_airborn()
-                
-                case FlightStatus.AIRBORN:
-                    match self.gui.control_mode:
-                        case ControlMode.MANUAL:
-                            self.telemetry.send_command(command, dt)
-                        case ControlMode.PLANNER:
-                            if self.gui.layout.plan_btn.latched:
-                                setpoint = self.planners[self.selected_planner].update(measurement, frame, flags, dt)
-                                self.telemetry.send_setpoint(setpoint, dt)
-                
-                case FlightStatus.LAND:
-                    if self.telemetry.land(dt):
-                        self.flight_status = FlightStatus.LANDED
-                        self.telemetry.z = self.telemetry.measurement.read().position.z
-                        self.gui.on_landed()
+                    case FlightStatus.TKOF:
+                        if self.telemetry.tkof(dt):
+                            self.flight_status = FlightStatus.AIRBORN
+                            self.telemetry.z = self.telemetry.measurement.read().position.z
+                            self.gui.on_airborn()
+                    
+                    case FlightStatus.AIRBORN:
+                        match self.gui.control_mode:
+                            case ControlMode.MANUAL:
+                                self.telemetry.send_command(command, dt)
+                            case ControlMode.PLANNER:
+                                if self.gui.layout.plan_btn.latched:
+                                    setpoint = self.planners[self.selected_planner].update(measurement, frame, flags, dt)
+                                    self.telemetry.send_setpoint(setpoint, dt)
+                    
+                    case FlightStatus.LAND:
+                        if self.telemetry.land(dt):
+                            self.flight_status = FlightStatus.LANDED
+                            self.telemetry.z = self.telemetry.measurement.read().position.z
+                            self.gui.on_landed()
 
-            # Capture gates positions and yaw when capture button is pressed
-            if command.capture:
-                self.recorder.add_gate(measurement)
-                self.gui.audio.play(Audio.Track.SHUTTER)
-                self.gui.layout.shutter_indicator.trigger()
+                # Capture gates positions and yaw when capture button is pressed
+                if command.capture:
+                    self.recorder.add_gate(measurement)
+                    self.gui.audio.play(Audio.Track.SHUTTER)
+                    self.gui.layout.shutter_indicator.trigger()
 
             # Update GUI
             self.gui.update_command_indicators(self.telemetry.command)

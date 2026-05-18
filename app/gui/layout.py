@@ -15,7 +15,7 @@ class Layout:
     WINDOW_WIDTH = 1280
     WINDOW_HEIGHT = 720
     MARGIN = 10
-    BTN_WIDTH = 132
+    BTN_WIDTH = 115
     LABEL_WIDTH = 200
     TOP_BAR = 30
     BOTTOM_BAR = 30
@@ -27,23 +27,25 @@ class Layout:
 
         # Top bar
         x = Layout.MARGIN / 2
-        self.radio_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "RADIO [OFF]", Layout.BTN_WIDTH)
+        self.radio_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "TEL [OFF]", Layout.BTN_WIDTH)
         x += Layout.BTN_WIDTH + Layout.MARGIN
-        self.wifi_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "WIFI [OFF]", Layout.BTN_WIDTH)
+        self.wifi_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "CAM [OFF]", Layout.BTN_WIDTH)
         x += Layout.BTN_WIDTH + Layout.MARGIN
         self.sim_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "SIM [OFF]", Layout.BTN_WIDTH)
         x += Layout.BTN_WIDTH + Layout.MARGIN
         self.mode_btn = Button(glm.uvec2(x, Layout.MARGIN), "MODE [MAN]", Layout.BTN_WIDTH)
         x += Layout.BTN_WIDTH + Layout.MARGIN
-        self.source_btn = Button(glm.uvec2(x, Layout.MARGIN), "CONTROLLER", Layout.BTN_WIDTH)
+        self.source_btn = Button(glm.uvec2(x, Layout.MARGIN), "XBOX", Layout.BTN_WIDTH)
         x += Layout.BTN_WIDTH + Layout.MARGIN
         self.plan_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "PLAN [OFF]", Layout.BTN_WIDTH, disabled=True)
         x += Layout.BTN_WIDTH + Layout.MARGIN
-        self.vws_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "VOICE [ON]", Layout.BTN_WIDTH, latched=True)
+        self.vws_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "VWS [ON]", Layout.BTN_WIDTH, latched=True)
         x += Layout.BTN_WIDTH + Layout.MARGIN
-        self.tkof_land_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "LANDED", Layout.BTN_WIDTH, disabled=True)
+        self.tkof_land_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "LND", Layout.BTN_WIDTH, disabled=True)
         x += Layout.BTN_WIDTH + Layout.MARGIN
         self.rec_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "REC [OFF]", Layout.BTN_WIDTH)
+        x += Layout.BTN_WIDTH + Layout.MARGIN
+        self.playback_btn = Toggle(glm.uvec2(x, Layout.MARGIN), "PLAY [OFF]", Layout.BTN_WIDTH)
 
         # Image and overlay
         self.camera_image = Image(glm.uvec2(0, Layout.TOP_BAR + 2 * Layout.MARGIN), Layout.WINDOW_WIDTH, Layout.WINDOW_HEIGHT, z_index=0)
