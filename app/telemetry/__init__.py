@@ -40,6 +40,7 @@ class Telemetry(Thread):
         NEW_MEASUREMENT = 1
         NEW_FRAME       = 2
         BOTH            = NEW_MEASUREMENT | NEW_FRAME
+        SIMULATION      = 4
 
     class WifiState(Enum):
         DISCONNECTED    = 0

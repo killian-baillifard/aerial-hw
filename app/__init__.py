@@ -9,10 +9,6 @@ class CommandSource(Enum):
     KEYBOARD    = 0
     CONTROLLER  = 1
 
-class PlanStage(Enum):
-    SCAN    = 0
-    RACE    = 1
-
 class FlightStatus(Enum):
     LANDED  = 0
     TKOF    = 1

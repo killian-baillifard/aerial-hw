@@ -2,23 +2,29 @@ import numpy as np
 from pyglm import glm
 from abc import ABC, abstractmethod
 from cv2.typing import MatLike
+from app.generics import Event
 from app.io import Measurement
 from app.io import Setpoint
 from app import wrap
 from app.telemetry import Telemetry
+from app.telemetry.gate import Gate
 
 class Planner(ABC):
 
-    HOME_SETPOINT   = Setpoint(glm.vec3(-1.0, 0.0, 1.0), 0.0)
+    HOME_POSITION   = glm.vec3(-1.0, 0.0, 1.0)
+    HOME_YAW        = 0.0
+    HOME_SETPOINT   = Setpoint(HOME_POSITION, HOME_YAW)
     APPROACH_DIST   = 0.20          # m
-    POS_TOL         = 0.15          # m
-    YAW_TOL         = np.pi / 6    # radians
+    POS_TOL         = 0.10          # m
+    YAW_TOL         = np.pi / 10    # radians
 
     def __init__(self):
         self.waypoints: list[Setpoint]  = []
         self.gates: list[Setpoint]      = []
+        self.gate_found_event: Event[Setpoint] = Event[Setpoint]()
+        self.gates_detected_event: Event[list[Gate]] = Event[list[Gate]]()
 
-    def reach(setpoint: Setpoint, measurement: Measurement) -> tuple[Setpoint, bool]:
+    def reach(setpoint: Setpoint, measurement: Measurement, speed: float = 1.0) -> tuple[Setpoint, bool]:
         """
         Interpolate a new setpoint between current measurement and target setpoint
 
@@ -52,7 +58,7 @@ class Planner(ABC):
             return Setpoint(measurement.position, target_heading), False
 
         # Advance toward target
-        direction   = glm.normalize(error.xy) if dist_xy > 1.0 else error.xy
+        direction   = speed * glm.normalize(error.xy) if dist_xy > speed else error.xy
         position    = glm.vec3(measurement.position.xy + direction, setpoint.position.z)
         loc_reached = dist_xy < Planner.POS_TOL
         if not loc_reached:
