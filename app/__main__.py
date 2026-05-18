@@ -7,8 +7,8 @@ from app.io.controller import Controller
 from app.io.keyboard import Keyboard
 from app.telemetry import Telemetry
 from app.planner import Planner
-from app.planner.scan import ScanPlanner
-from app.planner.race import RacePlanner
+from app.planner.scan import Scan
+from app.planner.race import Race
 from app.telemetry.recorder import Recorder
 from app.telemetry.playback import Playback
 
@@ -28,9 +28,9 @@ class App:
         self.playback       = Playback("2026-05-13-14-52-04")
         self.flight_status  = FlightStatus.LANDED
         self.planners: dict[str, Planner] = {
-            "SCAN": ScanPlanner(),
-            "RACE SLOW": RacePlanner(speed=0.25),
-            "RACE FAST": RacePlanner(speed=1.0)
+            "SCAN": Scan(),
+            "RACE SLOW": Race(speed=0.25),
+            "RACE FAST": Race(speed=1.0)
         }
         self.selected_planner = next(iter(self.planners))
 
@@ -98,8 +98,7 @@ class App:
                 dt = new_t - old_t
             old_t = new_t
 
-            # Read telemetry
-
+            # Read telemetry, either from playback or actual telemetry module (can be real of simulated data)
             if self.gui.layout.playback_btn.latched:
                 self.playback.step(dt)
                 measurement, new_measurement = self.playback.measurement.get()
@@ -108,7 +107,8 @@ class App:
                 self.playback.reset()
                 measurement, new_measurement = self.telemetry.measurement.get()
                 frame, new_frame = self.telemetry.frame.get()
-
+            
+            # Create telemetry flags for planners
             flags = Telemetry.Flags.NEITHER
             if new_measurement:
                 flags |= Telemetry.Flags.NEW_MEASUREMENT
@@ -128,9 +128,11 @@ class App:
                     command = Command()
             command.update(dt)
 
-            # Compute command / setpoint
-            if self.gui.layout.playback_btn.latched and self.gui.layout.plan_btn.latched:
+            # Skip command to run playback (to give test images for planner to try inferences)
+            if self.gui.layout.playback_btn.latched:
                 self.planners[self.selected_planner].update(measurement, frame, flags, dt)
+
+            # Compute next command from manual inputs or planner
             else:
                 match self.flight_status:
 

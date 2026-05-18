@@ -1,3 +1,4 @@
+import numpy as np
 from pyglm import glm
 
 FORWARD = glm.vec3(1, 0, 0)
@@ -5,7 +6,8 @@ LEFT = glm.vec3(0, 1, 0)
 UP = glm.vec3(0, 0, 1)
 WIDTH                    = 324                   # px
 HEIGHT                   = 244                   # px
-FOV_Y: float             = 1.5                   # radians
+CAM_FULL_HEIGHT          = 330                   # px
+FOV_Y: float             = 1.0                   # radians
 NEAR_PLANE: float        = 0.001                 # m
 ASPECT_RATIO             = WIDTH / HEIGHT
 PROJECTION: glm.mat4x4   = glm.infinitePerspective(FOV_Y, ASPECT_RATIO, NEAR_PLANE)

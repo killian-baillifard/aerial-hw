@@ -57,7 +57,7 @@ class Scene(Widget):
 
         # Create empty gates
         self.gates_mesh: list[Mesh] = []
-        self.gates_detection_overlay: list[Gate] = []
+        self.detected_gates: list[Gate] = []
 
         # Create empty lines to draw
         self.lines_to_draw: list[Line] = []
@@ -94,7 +94,7 @@ class Scene(Widget):
         self.gates_mesh.append(Mesh(world_vertices, indices))
 
     def new_gates_points(self, gates: list[Gate]) -> None:
-        self.gates_detection_overlay = gates
+        self.detected_gates = gates
 
     def set_view(self, position: glm.vec3, rotation: glm.vec3):
         view_matrix = view(position, euler_to_quaternion(rotation))
@@ -107,17 +107,20 @@ class Scene(Widget):
     def draw(self, surface: Surface) -> None:
 
         # Compute gates detection overlay
-        for gate in self.gates_detection_overlay:
+        first = True
+        for gate in self.detected_gates:
             gui_coords: list[glm.uvec2] = []
             for corner in gate.corners:
                 scaled_frame_coords = self.scale * corner
                 frame_coords = glm.uvec2(scaled_frame_coords.x, scaled_frame_coords.y)
                 gui_coords.append(self.offset + frame_coords)
                 draw.circle(surface, Scene.COLOR, gui_coords[-1], 6)
-            for i in range(4):
-                begin = gui_coords[i]
-                end = gui_coords[(i + 1) % 4]
-                draw.line(surface, Scene.COLOR, begin, end, 14)
+            if first:
+                for i in range(4):
+                    begin = gui_coords[i]
+                    end = gui_coords[(i + 1) % 4]
+                    draw.line(surface, Scene.COLOR, begin, end, 14)
+            first = False
 
         # Draw meshes
         for line in self.lines_to_draw:

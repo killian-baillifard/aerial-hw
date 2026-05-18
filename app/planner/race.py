@@ -9,7 +9,7 @@ from app.io import Setpoint
 from app.planner import Planner
 from app.telemetry import Telemetry
 
-class RacePlanner(Planner):
+class Race(Planner):
 
     GATES_DIRECTORY = "gates"
 
@@ -21,7 +21,7 @@ class RacePlanner(Planner):
     def reload(self) -> None:
 
         # Take first file found in gates directory
-        gates_directory = os.path.join(RacePlanner.GATES_DIRECTORY)
+        gates_directory = os.path.join(Race.GATES_DIRECTORY)
         file_name = os.listdir(gates_directory)[0]
         file_path = os.path.join(gates_directory, file_name)
 
@@ -36,30 +36,30 @@ class RacePlanner(Planner):
 
             # Build trajectory starting from home position
             self.waypoints.clear()
-            home_to_first_gate_direction = self.gates[0].position - RacePlanner.HOME_SETPOINT.position
+            home_to_first_gate_direction = self.gates[0].position - Race.HOME_SETPOINT.position
             home_to_first_gate_yaw = np.atan2(home_to_first_gate_direction.y, home_to_first_gate_direction.x)
-            self.waypoints.append(Setpoint(RacePlanner.HOME_SETPOINT.position, home_to_first_gate_yaw))
+            self.waypoints.append(Setpoint(Race.HOME_SETPOINT.position, home_to_first_gate_yaw))
 
             # Append all gates twice (2 laps) with two points on either end of each gate
             for _ in range(2):
                 for gate in self.gates:
                     normal = glm.vec3(
-                        RacePlanner.APPROACH_DIST * np.cos(gate.yaw),
-                        RacePlanner.APPROACH_DIST * np.sin(gate.yaw),
+                        Race.APPROACH_DIST * np.cos(gate.yaw),
+                        Race.APPROACH_DIST * np.sin(gate.yaw),
                         0.0
                     )
                     self.waypoints.append(Setpoint(gate.position - normal, gate.yaw))
                     self.waypoints.append(Setpoint(gate.position + normal, gate.yaw))
 
         # Return to home position at the end
-        self.waypoints.append(RacePlanner.HOME_SETPOINT)
+        self.waypoints.append(Race.HOME_SETPOINT)
 
     @overrides
     def update(self, measurement: Measurement, frame: MatLike, flags: Telemetry.Flags, dt: float) -> Setpoint:
 
         # Waypoint list empty, go back to home position
         if(len(self.waypoints) == 0):
-            return RacePlanner.HOME_SETPOINT
+            return Race.HOME_SETPOINT
         
         # Until waypoint is reached, return interpolated setpoint
         setpoint, reached = Planner.reach(self.waypoints[0], measurement, self.speed)
