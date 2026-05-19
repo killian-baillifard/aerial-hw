@@ -48,4 +48,5 @@ class Gate:
         # Compute gate position
         ray = Ray(self.center, self.measurement.position, self.measurement.rotation)
         origin, direction = ray.cast()
+        self.normal = direction
         self.position = origin + direction * self.distance

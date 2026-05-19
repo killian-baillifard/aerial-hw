@@ -13,16 +13,20 @@ from app.telemetry.gate import Gate
 from app.telemetry.camera import UP, world2clip, clip2screen, CLIP_PLANES, WIDTH, HEIGHT, view, euler_to_quaternion
 from ultralytics import YOLO
 
-MODEL_PATH = os.path.join("controller_detection", "detection_model", "models", "yolov8n_v2bw_r1", "weights", "best.pt")
+MODEL_PATH = os.path.join("controller_detection", "detection_model", "models", "yolov8n_v3bw_r1", "weights", "best.pt")
 
 class Scan(Planner):
 
-    INITIAL_SETPOINT = Setpoint(Planner.HOME_POSITION, np.deg2rad(-45))
+    SCAN_YAWS = [-45, 0, 75, 130, 180, 0]
+    INITIAL_SETPOINT = Setpoint(Planner.HOME_POSITION, np.deg2rad(SCAN_YAWS[0]))
+    STABILIZATION_TIMEOUT = 2.0 # s
+    GATE_PASS_DIST = 0.10 # m
 
     class State(Enum):
         REACH_WAYPOINT = 0
-        FIND_GATE = 1
-        END = 2
+        STABILIZE = 1
+        FIND_GATE = 2
+        END = 3
 
     def __init__(self) -> None:
         super().__init__()
@@ -30,6 +34,7 @@ class Scan(Planner):
         self.model.eval()
         self.waypoints.append(Scan.INITIAL_SETPOINT)
         self.state = Scan.State.REACH_WAYPOINT
+        self.stabilization_timeout = 0.0
         self.load_sim()
 
     def load_sim(self) -> None:
@@ -48,6 +53,8 @@ class Scan(Planner):
         self.gates.clear()
         self.waypoints.append(Scan.INITIAL_SETPOINT)
         self.state = Scan.State.REACH_WAYPOINT
+        self.stabilization_timeout = 0.0
+        self.load_sim()
 
     @overrides
     def update(self, measurement: Measurement, frame: MatLike, flags: Telemetry.Flags, dt: float) -> Setpoint:
@@ -71,7 +78,7 @@ class Scan(Planner):
 
                     # Look for next gate until 5 were found
                     if len(self.gates) < 5:
-                        self.state = Scan.State.FIND_GATE
+                        self.state = Scan.State.STABILIZE
                         return self.update(measurement, frame, flags, dt)
                     
                     # All gates have been crossed, return home
@@ -84,6 +91,13 @@ class Scan(Planner):
                 else:
                     return setpoint
 
+            case Scan.State.STABILIZE:
+                self.stabilization_timeout += dt
+                if self.stabilization_timeout > Scan.STABILIZATION_TIMEOUT:
+                    self.stabilization_timeout = 0
+                    self.state = Scan.State.FIND_GATE
+                return setpoint
+            
             case Scan.State.FIND_GATE:
 
                 # Gate detected
@@ -93,8 +107,9 @@ class Scan(Planner):
                     gate = gates[0]
 
                     # Compute next waypoint
-                    next_yaw = wrap(self.waypoints[-1].yaw + np.deg2rad(60))
-                    next_setpoint = Setpoint(gate.position, next_yaw)
+                    target_yaw = np.deg2rad(Scan.SCAN_YAWS[len(self.waypoints)])
+                    target_position = gate.position + gate.normal * Scan.GATE_PASS_DIST
+                    next_setpoint = Setpoint(target_position, target_yaw)
 
                     # Append it to lists
                     self.gates.append(next_setpoint)
