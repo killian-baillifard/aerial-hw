@@ -10,7 +10,7 @@ import atexit
 
 class Recorder:
 
-    RECORDINGS_PATH = os.path.join("recordings")
+    RECORDINGS_PATH = os.path.join("saved_recordings")
     GATES_PATH = os.path.join("gates")
     GATES_FILE_NAME = "gates_info.csv"
     GATES_FILE_PATH = os.path.join(GATES_PATH, GATES_FILE_NAME)

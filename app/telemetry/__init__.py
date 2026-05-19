@@ -213,6 +213,7 @@ class Telemetry(Thread):
                 self.crazyflie.commander.send_zdistance_setpoint(0.0, 0.0, 0.0, Telemetry.LAND_HEIGHT)
             else:
                 self.crazyflie.commander.send_stop_setpoint()
+                print("STOP SETPOINT SENT")
         elif self.sim_enabled.get():
             self.step_simulation(dt)
         return landed
