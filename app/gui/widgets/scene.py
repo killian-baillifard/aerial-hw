@@ -11,6 +11,8 @@ from app.telemetry.gate import Gate
 
 class Scene(Widget):
 
+    CAL_POINT_X         = 1.0   # m
+    SECTORS_CENTER      = CAL_POINT_X + 0.165 # m
     DEPTH: float        = 4.05  # m
     WIDTH: float        = 2.87  # m
     HEIGHT: float       = 2.4   # m
@@ -28,14 +30,14 @@ class Scene(Widget):
         # Generate room mesh
         self.room = Mesh(
             [
-                glm.vec3(-Scene.DEPTH / 2, -Scene.WIDTH / 2, 0.0),
-                glm.vec3(-Scene.DEPTH / 2, -Scene.WIDTH / 2, Scene.HEIGHT),
-                glm.vec3(-Scene.DEPTH / 2, +Scene.WIDTH / 2, 0.0),
-                glm.vec3(-Scene.DEPTH / 2, +Scene.WIDTH / 2, Scene.HEIGHT),
-                glm.vec3(+Scene.DEPTH / 2, -Scene.WIDTH / 2, 0.0),
-                glm.vec3(+Scene.DEPTH / 2, -Scene.WIDTH / 2, Scene.HEIGHT),
-                glm.vec3(+Scene.DEPTH / 2, +Scene.WIDTH / 2, 0.0),
-                glm.vec3(+Scene.DEPTH / 2, +Scene.WIDTH / 2, Scene.HEIGHT),
+                glm.vec3(Scene.SECTORS_CENTER - Scene.DEPTH / 2, -Scene.WIDTH / 2, 0.0),
+                glm.vec3(Scene.SECTORS_CENTER - Scene.DEPTH / 2, -Scene.WIDTH / 2, Scene.HEIGHT),
+                glm.vec3(Scene.SECTORS_CENTER - Scene.DEPTH / 2, +Scene.WIDTH / 2, 0.0),
+                glm.vec3(Scene.SECTORS_CENTER - Scene.DEPTH / 2, +Scene.WIDTH / 2, Scene.HEIGHT),
+                glm.vec3(Scene.SECTORS_CENTER + Scene.DEPTH / 2, -Scene.WIDTH / 2, 0.0),
+                glm.vec3(Scene.SECTORS_CENTER + Scene.DEPTH / 2, -Scene.WIDTH / 2, Scene.HEIGHT),
+                glm.vec3(Scene.SECTORS_CENTER + Scene.DEPTH / 2, +Scene.WIDTH / 2, 0.0),
+                glm.vec3(Scene.SECTORS_CENTER + Scene.DEPTH / 2, +Scene.WIDTH / 2, Scene.HEIGHT),
             ],
             [
                 (0, 1), (1, 3), (3, 2), (2, 0),
@@ -45,12 +47,12 @@ class Scene(Widget):
         )
 
         # Generate sectors mesh
-        sectors_vertices = [glm.vec3(0.0, 0.0, 0.0)]
+        sectors_vertices = [glm.vec3(Scene.SECTORS_CENTER, 0.0, 0.0)]
         sectors_indices = []
         for i in range(10):
             angle = np.deg2rad(45) + i * np.deg2rad(30)
-            x = -(Scene.WIDTH / 2) * np.cos(angle)
-            y = -(Scene.WIDTH / 2) * np.sin(angle)
+            x = Scene.SECTORS_CENTER - (Scene.WIDTH / 2) * np.cos(angle)
+            y = 0 - (Scene.WIDTH / 2) * np.sin(angle)
             sectors_vertices.append(glm.vec3(x, y, 0.0))
             sectors_indices.append((0, i + 1))
         self.sectors = Mesh(sectors_vertices, sectors_indices)
