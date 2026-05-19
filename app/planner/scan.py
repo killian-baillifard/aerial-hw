@@ -17,7 +17,7 @@ MODEL_PATH = os.path.join("controller_detection", "detection_model", "models", "
 
 class Scan(Planner):
 
-    SCAN_YAWS = [-45, 0, 75, 130, 180, 0]
+    SCAN_YAWS = [-45, 0, 75, 130, 180, 180]
     INITIAL_SETPOINT = Setpoint(Planner.HOME_POSITION, np.deg2rad(SCAN_YAWS[0]))
     STABILIZATION_TIMEOUT = 2.0 # s
     GATE_PASS_DIST = 0.10 # m
