@@ -34,6 +34,7 @@ class App:
             "SCAN OSK": ScanOskar(),
             "SCAN VIN": ScanVincent(),
             "RACE SLOW": Race(speed=0.25),
+            "RACE MID": Race(speed=0.5),
             "RACE FAST": Race(speed=1.0)
         }
         self.selected_planner = next(iter(self.planners))
@@ -133,6 +134,12 @@ class App:
                 case _:
                     command = Command()
             command.update(dt)
+
+            # Poll for start with space
+            if self.gui.control_mode == ControlMode.PLANNER:
+                self.keyboard.update(dt)
+                if self.keyboard.last_space:
+                    flags |= Telemetry.Flags.START
 
             # Skip command to run playback (to give test images for planner to try inferences)
             if self.gui.layout.playback_btn.latched:

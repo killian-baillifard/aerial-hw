@@ -18,6 +18,7 @@ class Race(Planner):
     def __init__(self, speed: float = 1.0):
         super().__init__()
         self.speed = speed
+        self.started = False
 
     @overrides
     def reload(self) -> None:
@@ -26,6 +27,7 @@ class Race(Planner):
         gates_directory = os.path.join(Race.GATES_DIRECTORY)
         file_name = os.listdir(gates_directory)[0]
         file_path = os.path.join(gates_directory, file_name)
+        self.started = False
 
         # Load and parse gates coordinates
         # - Assume it's a csv with columns (Gate, x, y, z, theta, width, height)
@@ -39,7 +41,7 @@ class Race(Planner):
         if not np.isnan(raw_csv_data[0]).any():
             positions: list[glm.vec3]   = [glm.vec3(col[1], col[2], col[3]) for col in raw_csv_data]
             if ENABLE_TAS_REF_ANGLE:
-                yaws: list[float]       = [wrap(col[4] - np.pi) for col in raw_csv_data]
+                yaws: list[float]       = [wrap(col[4]) for col in raw_csv_data]
             else:
                 yaws: list[float]       = [wrap(col[4]) for col in raw_csv_data]
             self.gates                  = [Setpoint(position, yaw) for position, yaw in zip(positions, yaws)]
@@ -66,6 +68,12 @@ class Race(Planner):
 
     @overrides
     def update(self, measurement: Measurement, frame: MatLike, flags: Telemetry.Flags, dt: float) -> Setpoint:
+
+        if Telemetry.Flags.START in flags:
+            self.started = True
+
+        if not self.started:
+            return Race.HOME_SETPOINT # Change this to move the hover setpoint
 
         # Waypoint list empty, go back to home position
         if(len(self.waypoints) == 0):
