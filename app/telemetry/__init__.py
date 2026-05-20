@@ -15,6 +15,10 @@ from app.io import Measurement
 from app.telemetry.camera import WIDTH, HEIGHT
 from enum import Enum, Flag
 import socket
+import logging
+
+# Only output errors from the logging framework
+logging.basicConfig(level=logging.ERROR)
 
 class Telemetry(Thread):
 
@@ -40,6 +44,7 @@ class Telemetry(Thread):
         NEW_MEASUREMENT = 1
         NEW_FRAME       = 2
         BOTH            = NEW_MEASUREMENT | NEW_FRAME
+        SIMULATION      = 4
 
     class WifiState(Enum):
         DISCONNECTED    = 0
@@ -69,6 +74,7 @@ class Telemetry(Thread):
         self.measurement: Mailbox[Measurement] = Mailbox(Measurement())
         self.frame: Mailbox[MatLike] = Mailbox(np.zeros(shape=(HEIGHT, WIDTH), dtype=np.uint8))
         self.command: Command = Command()
+        self.setpoint: Setpoint = Setpoint(glm.vec3(np.nan, np.nan, np.nan), np.nan)
         self.z: float = 0
 
         # Create events
@@ -160,6 +166,7 @@ class Telemetry(Thread):
         def close() -> None:
             self.clear_log_config()
             self.crazyflie.close_link()
+        self.setpoint = Setpoint(glm.vec3(np.nan, np.nan, np.nan), np.nan)
         Thread(target=close, daemon=True).start()
 
     def on_connect_wifi(self) -> None:
@@ -212,6 +219,7 @@ class Telemetry(Thread):
                 self.crazyflie.commander.send_zdistance_setpoint(0.0, 0.0, 0.0, Telemetry.LAND_HEIGHT)
             else:
                 self.crazyflie.commander.send_stop_setpoint()
+                print("STOP SETPOINT SENT")
         elif self.sim_enabled.get():
             self.step_simulation(dt)
         return landed
@@ -243,7 +251,8 @@ class Telemetry(Thread):
         self.command = setpoint.to_command(self.measurement.read())
 
         # Send command or run simulation
-        if self.radio_connected.get():
+        if self.radio_connected.get() and self.setpoint != setpoint:
+            self.setpoint = setpoint
             self.crazyflie.commander.send_position_setpoint(
                 setpoint.position.x,
                 setpoint.position.y,

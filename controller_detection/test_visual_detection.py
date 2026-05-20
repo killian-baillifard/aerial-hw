@@ -2,14 +2,14 @@ import os
 import cv2
 from matplotlib import image
 import numpy as np
-import detection_controller as dc
+# import detection_controller as dc
 
 import itertools
 import math
 
 def main():
 
-    controller = dc.DetectionController()
+    # controller = dc.DetectionController()
 
     # import test images and sensor data from ../saved_captures
     measures = None

@@ -1,3 +1,4 @@
+import numpy as np
 from pyglm import glm
 
 FORWARD = glm.vec3(1, 0, 0)
@@ -5,7 +6,8 @@ LEFT = glm.vec3(0, 1, 0)
 UP = glm.vec3(0, 0, 1)
 WIDTH                    = 324                   # px
 HEIGHT                   = 244                   # px
-FOV_Y: float             = 1.5                   # radians
+CAM_FULL_HEIGHT          = 330                   # px
+FOV_Y: float             = 1.0                   # radians
 NEAR_PLANE: float        = 0.001                 # m
 ASPECT_RATIO             = WIDTH / HEIGHT
 PROJECTION: glm.mat4x4   = glm.infinitePerspective(FOV_Y, ASPECT_RATIO, NEAR_PLANE)
@@ -32,7 +34,7 @@ def view(position: glm.vec3, rotation: glm.quat) -> glm.mat4x4:
         up
     )
 
-def clip_vertices(view: glm.mat4x4, vertices: list[glm.vec3]) -> list[glm.vec4]:
+def world2clip(view: glm.mat4x4, vertices: list[glm.vec3]) -> list[glm.vec4]:
     view_projection = PROJECTION * view
     return [view_projection * glm.vec4(vertex, 1.0) for vertex in vertices]
 
@@ -51,7 +53,7 @@ def clip_line(a: glm.vec4, b: glm.vec4) -> tuple[glm.vec4, glm.vec4] | None:
             pb = pa + t * (pb - pa)
     return pa, pb
 
-def clip_to_screen(v: glm.vec4) -> glm.vec2:
+def clip2screen(v: glm.vec4) -> glm.vec2:
     ndc = glm.vec3(v) / v.w
     sx = (ndc.x + 1.0) * 0.5 * WIDTH
     sy = (1.0 - ndc.y) * 0.5 * HEIGHT
@@ -70,12 +72,12 @@ class Mesh:
         self.indices = indices
 
     def project(self, view: glm.mat4x4) -> list[Line]:
-        clipped_vertices = clip_vertices(view, self.vertices)
+        clipped_vertices = world2clip(view, self.vertices)
         lines: list[Line] = []
         for i0, i1 in self.indices:
             clipped_line = clip_line(clipped_vertices[i0], clipped_vertices[i1])
             if clipped_line is None:
                 continue
             c0, c1 = clipped_line
-            lines.append(Line(clip_to_screen(c0), clip_to_screen(c1)))
+            lines.append(Line(clip2screen(c0), clip2screen(c1)))
         return lines

@@ -1,0 +1,8 @@
+kpt_shape:
+- 4
+- 3
+names:
+  0: gate
+path: ./dataset/annotated_gates_v3bw_split
+train: train/images
+val: val/images

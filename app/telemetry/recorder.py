@@ -10,7 +10,7 @@ import atexit
 
 class Recorder:
 
-    RECORDINGS_PATH = os.path.join("recordings")
+    RECORDINGS_PATH = os.path.join("saved_recordings")
     GATES_PATH = os.path.join("gates")
     GATES_FILE_NAME = "gates_info.csv"
     GATES_FILE_PATH = os.path.join(GATES_PATH, GATES_FILE_NAME)
@@ -100,7 +100,7 @@ class Recorder:
                 0.5
             ])
 
-    def load_recording(self, session_name: str) -> list[tuple[Measurement, MatLike]]:
+    def load_recording(session_name: str) -> list[tuple[Measurement, MatLike]]:
         csv_path = os.path.join(Recorder.RECORDINGS_PATH, f"{session_name}.csv")
         avi_path = os.path.join(Recorder.RECORDINGS_PATH, f"{session_name}.avi")
 
@@ -126,7 +126,7 @@ class Recorder:
                 ret, frame = cap.read()
                 if not ret:
                     break
-                results.append((measurement, cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
+                results.append((measurement, cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)))
         finally:
             cap.release()
 

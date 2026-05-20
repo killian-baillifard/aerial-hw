@@ -1,7 +1,0 @@
-path: ./dataset/annotated_gates_v1  # This should be the path to the folder containing 'images' and 'labels'
-train: train.txt                   # CVAT often uses this if you have a list of images
-val: train.txt                     # If you didn't create a separate validation set, use train for now (not ideal, but works)
-
-kpt_shape: [4, 3]
-names:
-  0: gate

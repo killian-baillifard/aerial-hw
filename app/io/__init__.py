@@ -23,6 +23,9 @@ class Setpoint:
 
     def __str__(self):
         return str(self.position) + " " + str(self.yaw)
+    
+    def __eq__(self, value: Self) -> bool:
+        return self.position == value.position and self.yaw == value.yaw
 
     def to_command(self, measurement: "Measurement") -> Command:
         absolute_error = self.position - measurement.position
