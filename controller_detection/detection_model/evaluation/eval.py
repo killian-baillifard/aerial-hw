@@ -23,6 +23,7 @@ from ultralytics.utils import SETTINGS
 # ---------------------------------------------------------------------------
 
 MODELS: dict[str, str] = {
+    "YOLOv8n v2rgb1": "../models/yolov8n_v2rgb_r1/weights/best.pt",
     "YOLOv8n v2rgb2": "../models/yolov8n_v2rgb_r2/weights/best.pt",
     "YOLOv8n v2bwr1": "../models/yolov8n_v2bw_r1/weights/best.pt",
     "YOLOv8n v3bwr1": "../models/yolov8n_v3bw_r1/weights/best.pt",
@@ -30,7 +31,7 @@ MODELS: dict[str, str] = {
     # Add / remove entries freely – dict key becomes the column header
 }
 
-TEST_DATASET = "../dataset/annotated_gates_v5d"
+TEST_DATASET = "../dataset/annotated_gates_v5d_test"
 
 # Inference / val settings
 IMGSZ    = 320

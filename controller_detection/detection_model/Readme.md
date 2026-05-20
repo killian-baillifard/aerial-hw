@@ -175,7 +175,7 @@ Go to ```detection_model```folder and run ```python training_YOLOv8-Pose.py```.
 - **Dataset Enhancement**: 2
 - **Undistorted Pipeline** 1c
 - **Close-ups of Corners** 2
-- **Train upon v3bw_r1 model** 1d
+- **Train upon v3bw_r1 or v2rgb_r1 model** 1d
 
 ## Inference
 

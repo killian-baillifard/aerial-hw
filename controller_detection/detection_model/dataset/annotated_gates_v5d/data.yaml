@@ -1,7 +1,0 @@
-kpt_shape:
-- 4
-- 3
-names:
-  0: gate
-path: .
-train: train.txt

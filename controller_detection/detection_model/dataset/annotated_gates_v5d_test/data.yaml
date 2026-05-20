@@ -1,0 +1,9 @@
+kpt_shape:
+- 4
+- 3
+names:
+  0: gate
+path: ./dataset/annotated_gates_v5d
+train: test/images
+val: test/images
+test: test/images
