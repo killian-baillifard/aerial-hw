@@ -11,7 +11,7 @@ from app.telemetry.gate import Gate
 
 class Planner(ABC):
 
-    HOME_POSITION   = glm.vec3(-1.0, 0.0, 1.0)
+    HOME_POSITION   = glm.vec3(0.0, 0.0, 1.0)
     HOME_YAW        = 0.0
     HOME_SETPOINT   = Setpoint(HOME_POSITION, HOME_YAW)
     APPROACH_DIST   = 0.20          # m
@@ -20,7 +20,7 @@ class Planner(ABC):
 
     def __init__(self):
         self.waypoints: list[Setpoint]  = []
-        self.gates: list[Setpoint]      = []
+        self.gates: list[Setpoint] = []
         self.gate_found_event: Event[Setpoint] = Event[Setpoint]()
         self.gates_detected_event: Event[list[Gate]] = Event[list[Gate]]()
 

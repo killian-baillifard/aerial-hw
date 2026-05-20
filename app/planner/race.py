@@ -9,6 +9,8 @@ from app.io import Setpoint
 from app.planner import Planner
 from app.telemetry import Telemetry
 
+ENABLE_TAS_REF_ANGLE = True
+
 class Race(Planner):
 
     GATES_DIRECTORY = "gates"
@@ -29,14 +31,17 @@ class Race(Planner):
         # - Assume it's a csv with columns (Gate, x, y, z, theta, width, height)
         # - Assume first row is a header, pop it
         raw_csv_data = np.genfromtxt(file_path, delimiter=',', dtype=float, ndmin=2, filling_values=np.nan)
-        if raw_csv_data.size == 0:
+        if raw_csv_data.size == 0 and raw_csv_data.shape[0] > 1:
             # no sim data -> leave gates empty
             self.gates = []
             return
-        row0 = np.atleast_1d(raw_csv_data[0])
-        if not np.isnan(row0).any():
+        raw_csv_data = raw_csv_data[1:]
+        if not np.isnan(raw_csv_data[0]).any():
             positions: list[glm.vec3]   = [glm.vec3(col[1], col[2], col[3]) for col in raw_csv_data]
-            yaws: list[float]           = [wrap(col[4]) for col in raw_csv_data]
+            if ENABLE_TAS_REF_ANGLE:
+                yaws: list[float]       = [wrap(col[4] - np.pi) for col in raw_csv_data]
+            else:
+                yaws: list[float]       = [wrap(col[4]) for col in raw_csv_data]
             self.gates                  = [Setpoint(position, yaw) for position, yaw in zip(positions, yaws)]
 
             # Build trajectory starting from home position

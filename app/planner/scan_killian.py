@@ -14,12 +14,13 @@ from app.telemetry.camera import UP, world2clip, clip2screen, CLIP_PLANES, WIDTH
 from ultralytics import YOLO
 
 MODEL_PATH = os.path.join("controller_detection", "detection_model", "models", "yolov8n_v3bw_r1", "weights", "best.pt")
+ENABLE_TAS_REF_ANGLE = True
 
-class Scan(Planner):
+class ScanKillian(Planner):
 
     SCAN_YAWS = [-45, 0, 75, 130, 180, 180]
     INITIAL_SETPOINT = Setpoint(Planner.HOME_POSITION, np.deg2rad(SCAN_YAWS[0]))
-    STABILIZATION_TIMEOUT = 2.0 # s
+    STABILIZATION_TIMEOUT = 4.0 # s
     GATE_PASS_DIST = 0.10 # m
 
     class State(Enum):
@@ -32,8 +33,8 @@ class Scan(Planner):
         super().__init__()
         self.model = YOLO(MODEL_PATH)
         self.model.eval()
-        self.waypoints.append(Scan.INITIAL_SETPOINT)
-        self.state = Scan.State.REACH_WAYPOINT
+        self.waypoints.append(ScanKillian.INITIAL_SETPOINT)
+        self.state = ScanKillian.State.REACH_WAYPOINT
         self.stabilization_timeout = 0.0
         self.gates = []
         self.sim_gates = []
@@ -70,15 +71,18 @@ class Scan(Planner):
         row0 = np.atleast_1d(raw_csv_data[0])
         if not np.isnan(row0).any():
             positions: list[glm.vec3]   = [glm.vec3(col[1], col[2], col[3]) for col in raw_csv_data]
-            yaws: list[float]           = [wrap(col[4]) for col in raw_csv_data]
+            if ENABLE_TAS_REF_ANGLE:
+                yaws: list[float] = [wrap(col[4] - np.pi) for col in raw_csv_data]
+            else:
+                yaws: list[float] = [wrap(col[4]) for col in raw_csv_data]
             self.sim_gates              = [Setpoint(position, yaw) for position, yaw in zip(positions, yaws)]
 
     @overrides
     def reload(self) -> None:
         self.waypoints.clear()
         self.gates.clear()
-        self.waypoints.append(Scan.INITIAL_SETPOINT)
-        self.state = Scan.State.REACH_WAYPOINT
+        self.waypoints.append(ScanKillian.INITIAL_SETPOINT)
+        self.state = ScanKillian.State.REACH_WAYPOINT
         self.stabilization_timeout = 0.0
         self.load_sim()
 
@@ -86,7 +90,7 @@ class Scan(Planner):
     def update(self, measurement: Measurement, frame: MatLike, flags: Telemetry.Flags, dt: float) -> Setpoint:
 
         # Automatic interpolation to last waypoint in list
-        setpoint, reached = Planner.reach(self.waypoints[-1], measurement, 0.5)
+        setpoint, reached = Planner.reach(self.waypoints[-1], measurement, 0.25)
 
         # Run inference on each incoming image (for visualization purposes)
         if Telemetry.Flags.NEW_FRAME in flags:
@@ -97,34 +101,34 @@ class Scan(Planner):
 
         match self.state:
 
-            case Scan.State.REACH_WAYPOINT:
+            case ScanKillian.State.REACH_WAYPOINT:
 
                 # Waypoint reached
                 if reached:
 
                     # Look for next gate until 5 were found
                     if len(self.gates) < 5:
-                        self.state = Scan.State.STABILIZE
+                        self.state = ScanKillian.State.STABILIZE
                         return self.update(measurement, frame, flags, dt)
                     
                     # All gates have been crossed, return home
                     else:
                         self.waypoints.append(Planner.HOME_SETPOINT)
-                        self.state = Scan.State.END
+                        self.state = ScanKillian.State.END
                         return self.update(measurement, frame, flags, dt)
 
                 # Waypoint not reached yet, keep going
                 else:
                     return setpoint
 
-            case Scan.State.STABILIZE:
+            case ScanKillian.State.STABILIZE:
                 self.stabilization_timeout += dt
-                if self.stabilization_timeout > Scan.STABILIZATION_TIMEOUT:
+                if self.stabilization_timeout > ScanKillian.STABILIZATION_TIMEOUT:
                     self.stabilization_timeout = 0
-                    self.state = Scan.State.FIND_GATE
+                    self.state = ScanKillian.State.FIND_GATE
                 return setpoint
             
-            case Scan.State.FIND_GATE:
+            case ScanKillian.State.FIND_GATE:
 
                 # Gate detected
                 if len(gates) > 0:
@@ -133,8 +137,8 @@ class Scan(Planner):
                     gate = gates[0]
 
                     # Compute next waypoint
-                    target_yaw = np.deg2rad(Scan.SCAN_YAWS[len(self.waypoints)])
-                    target_position = gate.position + gate.normal * Scan.GATE_PASS_DIST
+                    target_yaw = np.deg2rad(ScanKillian.SCAN_YAWS[len(self.waypoints)])
+                    target_position = gate.position + gate.normal * ScanKillian.GATE_PASS_DIST
                     next_setpoint = Setpoint(target_position, target_yaw)
 
                     # Append it to lists
@@ -142,14 +146,14 @@ class Scan(Planner):
                     self.waypoints.append(next_setpoint)
 
                     # Reach gate center
-                    self.state = Scan.State.REACH_WAYPOINT
+                    self.state = ScanKillian.State.REACH_WAYPOINT
                     return self.update(measurement, frame, flags, dt)
                     
                 # Gate not found, stay static
                 else:
                     return setpoint
                 
-            case Scan.State.END:
+            case ScanKillian.State.END:
                 return setpoint
 
     def find_gates(self, frame: MatLike, measurement: Measurement, flags: Telemetry.Flags) -> list[Gate]:

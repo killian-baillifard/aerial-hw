@@ -7,14 +7,16 @@ from app.io.controller import Controller
 from app.io.keyboard import Keyboard
 from app.telemetry import Telemetry
 from app.planner import Planner
-from app.planner.scan import Scan
+from app.planner.scan_killian import ScanKillian
+from app.planner.scan_oskar import ScanOskar
+from app.planner.scan_vincent import ScanVincent
 from app.planner.race import Race
 from app.telemetry.recorder import Recorder
 from app.telemetry.playback import Playback
 
 class App:
 
-    MAX_FRAMERATE = 60.0 # FPS
+    MAX_FRAMERATE = 40.0 # FPS, slower than telemetry on purpose to not overwhelm it
     MIN_PERIOD = 1.0 / MAX_FRAMERATE
 
     def __init__(self) -> None:
@@ -28,7 +30,9 @@ class App:
         self.playback       = Playback("2026-05-13-14-52-04")
         self.flight_status  = FlightStatus.LANDED
         self.planners: dict[str, Planner] = {
-            "SCAN": Scan(),
+            "SCAN KIL": ScanKillian(),
+            "SCAN OSK": ScanOskar(),
+            "SCAN VIN": ScanVincent(),
             "RACE SLOW": Race(speed=0.25),
             "RACE FAST": Race(speed=1.0)
         }

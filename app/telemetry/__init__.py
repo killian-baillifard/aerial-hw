@@ -15,6 +15,10 @@ from app.io import Measurement
 from app.telemetry.camera import WIDTH, HEIGHT
 from enum import Enum, Flag
 import socket
+import logging
+
+# Only output errors from the logging framework
+logging.basicConfig(level=logging.ERROR)
 
 class Telemetry(Thread):
 

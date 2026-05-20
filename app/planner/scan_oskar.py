@@ -103,7 +103,7 @@ def _euler2rotmat(rpy: np.ndarray) -> np.ndarray:
     return Ry @ Rp @ Rr
 
 
-class Scan(Planner):
+class ScanOskar(Planner):
 
     INITIAL_SETPOINT = Setpoint(Planner.HOME_POSITION, wrap(np.deg2rad(-45)))
     GATE_PASS_DIST   = 0.10   # m — offset past gate centre for exit waypoint
@@ -172,7 +172,7 @@ class Scan(Planner):
         self._pass_setpoint     : Optional[Setpoint] = None
         self._gates_passed      : int   = 0
 
-        self.state = Scan.State.FOLLOW_PATH
+        self.state = ScanOskar.State.FOLLOW_PATH
 
         self.load_sim()
 
@@ -249,7 +249,7 @@ class Scan(Planner):
             self._pass_queue.get()
         self._pass_setpoint  = None
         self._build_scan_path()
-        self.state = Scan.State.FOLLOW_PATH
+        self.state = ScanOskar.State.FOLLOW_PATH
         self.load_sim()
 
     @overrides
@@ -263,7 +263,7 @@ class Scan(Planner):
 
         # ── Detection / tracking / triangulation (runs in every state) ────────
         if Telemetry.Flags.NEW_FRAME in flags:
-            if self.timestamp - self._last_detect_t >= Scan.REDETECT_INTERVAL:
+            if self.timestamp - self._last_detect_t >= ScanOskar.REDETECT_INTERVAL:
                 detections = self._detect(frame)
                 P = self._projection(drone_xyz, drone_rpy)
                 self._associate_and_update(detections, P, drone_xyz, drone_rpy)
@@ -284,7 +284,7 @@ class Scan(Planner):
         # ── State machine ─────────────────────────────────────────────────────
         match self.state:
 
-            case Scan.State.FOLLOW_PATH:
+            case ScanOskar.State.FOLLOW_PATH:
                 setpoint, wp_reached = Planner.reach(self.waypoints[-1], measurement, 0.5)
 
                 # Check whether we have a confirmed gate that is the right next gate
@@ -295,14 +295,14 @@ class Scan(Planner):
                     self._enqueue_gate_passage(next_gate, drone_xyz)
                     del self.detected_gates[next_gate_id]   # consume so we don't re-select it
                     self._gates_passed += 1
-                    self.state = Scan.State.PASS_GATE
+                    self.state = ScanOskar.State.PASS_GATE
                     return self.update(measurement, frame, flags, dt)
 
                 # All 5 gates passed → go home
                 if self._gates_passed >= 5:
                     self.waypoints.clear()
                     self.waypoints.append(Planner.HOME_SETPOINT)
-                    self.state = Scan.State.END
+                    self.state = ScanOskar.State.END
                     return self.update(measurement, frame, flags, dt)
 
                 # Wrap scan path: if we finished the sweep without finding a gate, restart
@@ -312,13 +312,13 @@ class Scan(Planner):
 
                 return setpoint
 
-            case Scan.State.PASS_GATE:
+            case ScanOskar.State.PASS_GATE:
                 # Advance through the enqueued approach/through/exit setpoints
                 if self._pass_setpoint is None:
                     if self._pass_queue.empty():
                         # Finished passing — resume scan
                         self._build_scan_path()
-                        self.state = Scan.State.FOLLOW_PATH
+                        self.state = ScanOskar.State.FOLLOW_PATH
                         return self.update(measurement, frame, flags, dt)
                     self._pass_setpoint = self._pass_queue.get()
 
@@ -327,7 +327,7 @@ class Scan(Planner):
                     self._pass_setpoint = self._pass_queue.get() if not self._pass_queue.empty() else None
                 return setpoint
 
-            case Scan.State.END:
+            case ScanOskar.State.END:
                 setpoint, _ = Planner.reach(self.waypoints[-1], measurement, 0.5)
                 return setpoint
 
@@ -344,7 +344,7 @@ class Scan(Planner):
                 continue
             age = self.timestamp - candidate.last_seen.timestamp
 
-            if candidate.state == CandidateState.TRACKING and age > Scan.FORGET_TIME:
+            if candidate.state == CandidateState.TRACKING and age > ScanOskar.FORGET_TIME:
                 candidate.state = CandidateState.TRIANGULATING
 
             if candidate.state == CandidateState.TRIANGULATING:
@@ -388,7 +388,7 @@ class Scan(Planner):
                 continue
 
             dist = float(np.linalg.norm(center - drone_xyz))
-            if dist > Scan.GATE_SELECT_MAX_DIST:
+            if dist > ScanOskar.GATE_SELECT_MAX_DIST:
                 continue
 
             gate_zone = self._get_zone(center[0], center[1])
@@ -435,7 +435,7 @@ class Scan(Planner):
 
         approach = center - normal * 0.15
         through  = center.copy()
-        exit_pt  = center + normal * Scan.GATE_PASS_DIST
+        exit_pt  = center + normal * ScanOskar.GATE_PASS_DIST
 
         for pt in (approach, through, exit_pt):
             self._pass_queue.put(Setpoint(glm.vec3(float(pt[0]), float(pt[1]), float(pt[2])), yaw))
@@ -449,7 +449,7 @@ class Scan(Planner):
             rgb = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
         else:
             rgb = frame
-        results = self.model.predict(source=rgb, conf=Scan.YOLO_CONF, iou=Scan.YOLO_IOU, verbose=False)
+        results = self.model.predict(source=rgb, conf=ScanOskar.YOLO_CONF, iou=ScanOskar.YOLO_IOU, verbose=False)
 
         detected = []
         for r in (results if isinstance(results, (list, tuple)) else [results]):
@@ -506,7 +506,7 @@ class Scan(Planner):
 
             tracked = {}
             for i, cid in enumerate(corner_ids):
-                if status[i, 0] and error[i, 0] < Scan.TRACK_ERR_MAX:
+                if status[i, 0] and error[i, 0] < ScanOskar.TRACK_ERR_MAX:
                     tracked[cid] = new_pts[i, 0]
 
             if tracked:
@@ -534,7 +534,7 @@ class Scan(Planner):
                 if candidate.last_tracked_timestamp is None:
                     continue
                 age = self.timestamp - candidate.last_tracked_timestamp
-                if age > Scan.FORGET_TIME:
+                if age > ScanOskar.FORGET_TIME:
                     continue
                 if candidate.last_tracked_timestamp == self.timestamp:
                     continue  # already consumed this frame
@@ -546,7 +546,7 @@ class Scan(Planner):
                 if dist < best_dist:
                     best_dist, best_id = dist, cid
 
-            if best_id is not None and best_dist < Scan.MATCH_THRESHOLD:
+            if best_id is not None and best_dist < ScanOskar.MATCH_THRESHOLD:
                 candidate = self.gate_candidates[best_id]
             else:
                 candidate = GateCandidate()
@@ -576,10 +576,10 @@ class Scan(Planner):
 
     def _projection(self, xyz: np.ndarray, rpy: np.ndarray) -> np.ndarray:
         R_wb = _euler2rotmat(rpy)
-        R_cw = Scan.CAM_R @ R_wb.T
-        t_wc = R_wb @ Scan.CAM_T + xyz
+        R_cw = ScanOskar.CAM_R @ R_wb.T
+        t_wc = R_wb @ ScanOskar.CAM_T + xyz
         t_cw = -R_cw @ t_wc
-        return Scan.K @ np.hstack((R_cw, t_cw.reshape(3, 1)))
+        return ScanOskar.K @ np.hstack((R_cw, t_cw.reshape(3, 1)))
 
     # ─────────────────────────────────────────────────────────────────────────
     # Validation
@@ -602,9 +602,9 @@ class Scan(Planner):
         _, _, Vt  = np.linalg.svd(pts - centroid)
         normal    = Vt[-1]
         rms       = float(np.sqrt(np.mean(((pts - centroid) @ normal) ** 2)))
-        if rms > Scan.VAL_PLANARITY:
+        if rms > ScanOskar.VAL_PLANARITY:
             return False, 0.0
-        scores["planarity"] = 1.0 - rms / Scan.VAL_PLANARITY
+        scores["planarity"] = 1.0 - rms / ScanOskar.VAL_PLANARITY
 
         # Rectangularity
         n = len(pts)
@@ -615,19 +615,19 @@ class Scan(Planner):
             cos_a = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2) + 1e-9)
             angle_errs.append(abs(np.degrees(np.arccos(np.clip(cos_a, -1, 1))) - 90.0))
         max_err = max(angle_errs)
-        if max_err > Scan.VAL_ANGLE_DEG:
+        if max_err > ScanOskar.VAL_ANGLE_DEG:
             return False, 0.0
-        scores["rectangularity"] = 1.0 - max_err / Scan.VAL_ANGLE_DEG
+        scores["rectangularity"] = 1.0 - max_err / ScanOskar.VAL_ANGLE_DEG
 
         # Side lengths
         bl, tl, tr, br = cw[CornerID.BL], cw[CornerID.TL], cw[CornerID.TR], cw[CornerID.BR]
         avg_h = (np.linalg.norm(tl-bl) + np.linalg.norm(br-tr)) / 2.0
         avg_w = (np.linalg.norm(tr-tl) + np.linalg.norm(bl-br)) / 2.0
-        if not (Scan.VAL_SIZE_MIN <= avg_h <= Scan.VAL_SIZE_MAX and
-                Scan.VAL_SIZE_MIN <= avg_w <= Scan.VAL_SIZE_MAX):
+        if not (ScanOskar.VAL_SIZE_MIN <= avg_h <= ScanOskar.VAL_SIZE_MAX and
+                ScanOskar.VAL_SIZE_MIN <= avg_w <= ScanOskar.VAL_SIZE_MAX):
             return False, 0.0
         best_size = 0.0
-        for nom_w, nom_h in Scan.GATE_NOMINAL_SIZES.values():
+        for nom_w, nom_h in ScanOskar.GATE_NOMINAL_SIZES.values():
             s = max(0.0, 1.0 - 2.0 * max(abs(avg_w-nom_w)/nom_w, abs(avg_h-nom_h)/nom_h))
             best_size = max(best_size, s)
         scores["size"] = best_size
@@ -647,10 +647,10 @@ class Scan(Planner):
         if pos.shape[0] < 3:
             return False
         x, y, z = pos[:3]
-        m = Scan.WALL_CLEARANCE
-        return (m <= x <= Scan.ROOM_X - m and
-                m <= y <= Scan.ROOM_Y - m and
-                0.0 <= z <= Scan.ROOM_Z - m)
+        m = ScanOskar.WALL_CLEARANCE
+        return (m <= x <= ScanOskar.ROOM_X - m and
+                m <= y <= ScanOskar.ROOM_Y - m and
+                0.0 <= z <= ScanOskar.ROOM_Z - m)
 
     # ─────────────────────────────────────────────────────────────────────────
     # Zone helper
@@ -659,7 +659,7 @@ class Scan(Planner):
     def _get_zone(self, x: float, y: float) -> Optional[int]:
         if not self._in_bounds(np.array([x, y, 1.0])):
             return None
-        cx, cy     = Scan.ROOM_X / 2.0, Scan.ROOM_Y / 2.0
+        cx, cy     = ScanOskar.ROOM_X / 2.0, ScanOskar.ROOM_Y / 2.0
         hx, hy     = Planner.HOME_POSITION.x, Planner.HOME_POSITION.y
         angle      = np.arctan2(y - cy, x - cx)
         home_angle = np.arctan2(hy - cy, hx - cx)
@@ -699,7 +699,7 @@ class Scan(Planner):
             gates_points = np.array(gates_points)
         else:
             rgb         = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB) if len(frame.shape) == 2 else frame
-            predictions = self.model.predict(rgb, conf=Scan.YOLO_CONF, iou=Scan.YOLO_IOU, verbose=False)
+            predictions = self.model.predict(rgb, conf=ScanOskar.YOLO_CONF, iou=ScanOskar.YOLO_IOU, verbose=False)
             if len(predictions) != 1:
                 return []
             prediction = predictions[0]

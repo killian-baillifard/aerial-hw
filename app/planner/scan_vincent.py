@@ -15,7 +15,7 @@ from ultralytics import YOLO
 
 MODEL_PATH = os.path.join("controller_detection", "detection_model", "models", "yolov8n_v3bw_r1", "weights", "best.pt")
 
-class Scan(Planner):
+class ScanVincent(Planner):
 
     SCAN_YAWS = [-45, 0, 75, 130, 180, 180]
     INITIAL_SETPOINT = Setpoint(Planner.HOME_POSITION, np.deg2rad(SCAN_YAWS[0]))
@@ -52,9 +52,9 @@ class Scan(Planner):
         super().__init__()
         self.model = YOLO(MODEL_PATH)
         self.model.eval()
-        self.waypoints.append(Scan.INITIAL_SETPOINT)
-        self.state       = Scan.State.REACH_WAYPOINT
-        self.align_state = Scan.AlignState.ALTITUDE
+        self.waypoints.append(ScanVincent.INITIAL_SETPOINT)
+        self.state       = ScanVincent.State.REACH_WAYPOINT
+        self.align_state = ScanVincent.AlignState.ALTITUDE
         self.stabilization_timeout = 0.0
         self.load_sim()
 
@@ -72,9 +72,9 @@ class Scan(Planner):
     def reload(self) -> None:
         self.waypoints.clear()
         self.gates.clear()
-        self.waypoints.append(Scan.INITIAL_SETPOINT)
-        self.state       = Scan.State.REACH_WAYPOINT
-        self.align_state = Scan.AlignState.ALTITUDE
+        self.waypoints.append(ScanVincent.INITIAL_SETPOINT)
+        self.state       = ScanVincent.State.REACH_WAYPOINT
+        self.align_state = ScanVincent.AlignState.ALTITUDE
         self.stabilization_timeout = 0.0
         self.load_sim()
 
@@ -94,32 +94,32 @@ class Scan(Planner):
         match self.state:
 
             # ── 0. REACH_WAYPOINT ─────────────────────────────────────────────
-            case Scan.State.REACH_WAYPOINT:
+            case ScanVincent.State.REACH_WAYPOINT:
                 if reached:
                     if len(self.gates) < 5:
-                        self.state = Scan.State.STABILIZE
+                        self.state = ScanVincent.State.STABILIZE
                         return self.update(measurement, frame, flags, dt)
                     else:
                         self.waypoints.append(Planner.HOME_SETPOINT)
-                        self.state = Scan.State.END
+                        self.state = ScanVincent.State.END
                         return self.update(measurement, frame, flags, dt)
                 return setpoint
 
             # ── 1. STABILIZE ──────────────────────────────────────────────────
-            case Scan.State.STABILIZE:
+            case ScanVincent.State.STABILIZE:
                 self.stabilization_timeout += dt
-                if self.stabilization_timeout > Scan.STABILIZATION_TIMEOUT:
+                if self.stabilization_timeout > ScanVincent.STABILIZATION_TIMEOUT:
                     self.stabilization_timeout = 0.0
-                    self.align_state = Scan.AlignState.ALTITUDE   # always reset on entry
-                    self.state = Scan.State.ALIGN
+                    self.align_state = ScanVincent.AlignState.ALTITUDE   # always reset on entry
+                    self.state = ScanVincent.State.ALIGN
                 return setpoint
 
             # ── 2. ALIGN (closed-loop active-vision state machine) ────────────
-            case Scan.State.ALIGN:
+            case ScanVincent.State.ALIGN:
                 return self._align(gates, measurement, setpoint)
 
             # ── 3. END ────────────────────────────────────────────────────────
-            case Scan.State.END:
+            case ScanVincent.State.END:
                 return setpoint
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -159,7 +159,7 @@ class Scan(Planner):
             # YAW alignment (always active regardless of align_state)
             center_x  = WIDTH  / 2.0
             yaw_error = center_x - avg_u
-            new_yaw   = yaw + yaw_error * Scan.YAW_KP
+            new_yaw   = yaw + yaw_error * ScanVincent.YAW_KP
 
             # Vertical and horizontal errors
             center_y       = HEIGHT / 2.0
@@ -167,50 +167,50 @@ class Scan(Planner):
             height_diff    = h_left - h_right
 
             # Safety override: severe altitude drift → back to ALTITUDE
-            if abs(vertical_error) > Scan.ALTITUDE_OVERRIDE:
-                self.align_state = Scan.AlignState.ALTITUDE
+            if abs(vertical_error) > ScanVincent.ALTITUDE_OVERRIDE:
+                self.align_state = ScanVincent.AlignState.ALTITUDE
 
-            if self.align_state == Scan.AlignState.ALTITUDE:
-                new_z = z + vertical_error * Scan.ALTITUDE_KP
-                if abs(vertical_error) <= Scan.ALTITUDE_THRESH:
-                    self.align_state = Scan.AlignState.FORWARD
+            if self.align_state == ScanVincent.AlignState.ALTITUDE:
+                new_z = z + vertical_error * ScanVincent.ALTITUDE_KP
+                if abs(vertical_error) <= ScanVincent.ALTITUDE_THRESH:
+                    self.align_state = ScanVincent.AlignState.FORWARD
 
-            elif self.align_state == Scan.AlignState.FORWARD:
-                new_x = x + Scan.FORWARD_STEP * np.cos(yaw)
-                new_y = y + Scan.FORWARD_STEP * np.sin(yaw)
-                if abs(height_diff) > Scan.ALIGN_TOLERANCE:
-                    self.align_state = Scan.AlignState.ORBIT
+            elif self.align_state == ScanVincent.AlignState.FORWARD:
+                new_x = x + ScanVincent.FORWARD_STEP * np.cos(yaw)
+                new_y = y + ScanVincent.FORWARD_STEP * np.sin(yaw)
+                if abs(height_diff) > ScanVincent.ALIGN_TOLERANCE:
+                    self.align_state = ScanVincent.AlignState.ORBIT
 
-            elif self.align_state == Scan.AlignState.ORBIT:
-                if abs(height_diff) > Scan.ALIGN_TOLERANCE:
+            elif self.align_state == ScanVincent.AlignState.ORBIT:
+                if abs(height_diff) > ScanVincent.ALIGN_TOLERANCE:
                     # Proportional: larger asymmetry → faster strafe, capped at a max speed
                     strafe_speed = np.clip(
-                        height_diff * Scan.ORBIT_BASE_SPEED / (max_h + 1e-5),
-                        -Scan.ORBIT_MAX_SPEED,
-                        Scan.ORBIT_MAX_SPEED
+                        height_diff * ScanVincent.ORBIT_BASE_SPEED / (max_h + 1e-5),
+                        -ScanVincent.ORBIT_MAX_SPEED,
+                        ScanVincent.ORBIT_MAX_SPEED
                     )
                     # Positive speed strafes left (corrects rightward offset), negative strafes right
                     new_x = x - strafe_speed * np.sin(yaw)
                     new_y = y + strafe_speed * np.cos(yaw)
                 else:
-                    self.align_state = Scan.AlignState.FORWARD
+                    self.align_state = ScanVincent.AlignState.FORWARD
 
             # ── Gate confirmation: once we are close enough, commit it ────────
-            if gate.distance <= Scan.GATE_PASS_DIST * 2:
-                target_yaw      = np.deg2rad(Scan.SCAN_YAWS[len(self.waypoints)])
-                target_position = gate.position + gate.normal * Scan.GATE_PASS_DIST
+            if gate.distance <= ScanVincent.GATE_PASS_DIST * 2:
+                target_yaw      = np.deg2rad(ScanVincent.SCAN_YAWS[len(self.waypoints)])
+                target_position = gate.position + gate.normal * ScanVincent.GATE_PASS_DIST
                 next_setpoint   = Setpoint(target_position, target_yaw)
 
                 self.gates.append(next_setpoint)
                 self.waypoints.append(next_setpoint)
 
-                self.state = Scan.State.REACH_WAYPOINT
+                self.state = ScanVincent.State.REACH_WAYPOINT
 
         else:
             # ── Blind search: spin + drift toward room centre ─────────────────
-            self.align_state = Scan.AlignState.ALTITUDE   # reset for next gate
+            self.align_state = ScanVincent.AlignState.ALTITUDE   # reset for next gate
 
-            new_yaw = yaw + Scan.BLIND_YAW_RATE
+            new_yaw = yaw + ScanVincent.BLIND_YAW_RATE
 
             # Drift toward room centre so the camera sweeps fresh angles
             center_x     = getattr(self, 'room_x', 0.0) / 2.0
@@ -219,12 +219,12 @@ class Scan(Planner):
             vector_y     = center_y - y
             dist_to_center = np.hypot(vector_x, vector_y)
 
-            if dist_to_center > Scan.BLIND_CENTER_RADIUS:
-                new_x = x + (vector_x / dist_to_center) * Scan.BLIND_DRIFT_SPEED
-                new_y = y + (vector_y / dist_to_center) * Scan.BLIND_DRIFT_SPEED
+            if dist_to_center > ScanVincent.BLIND_CENTER_RADIUS:
+                new_x = x + (vector_x / dist_to_center) * ScanVincent.BLIND_DRIFT_SPEED
+                new_y = y + (vector_y / dist_to_center) * ScanVincent.BLIND_DRIFT_SPEED
 
-            if z < Scan.BLIND_Z_TARGET - 0.05 or z > Scan.BLIND_Z_TARGET + 0.05:
-                new_z = z + (Scan.BLIND_Z_TARGET - z) * Scan.BLIND_Z_KP
+            if z < ScanVincent.BLIND_Z_TARGET - 0.05 or z > ScanVincent.BLIND_Z_TARGET + 0.05:
+                new_z = z + (ScanVincent.BLIND_Z_TARGET - z) * ScanVincent.BLIND_Z_KP
 
         return Setpoint(glm.vec3(new_x, new_y, new_z), new_yaw)
 
