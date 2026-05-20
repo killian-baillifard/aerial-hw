@@ -18,7 +18,7 @@ ENABLE_TAS_REF_ANGLE = True
 
 class ScanKillian(Planner):
 
-    SCAN_YAWS = [-45, 0, 75, 130, 180, 180]
+    SCAN_YAWS = [-45, 0, 75, 135, 180, 180]
     INITIAL_SETPOINT = Setpoint(Planner.HOME_POSITION, np.deg2rad(SCAN_YAWS[0]))
     STABILIZATION_TIMEOUT = 4.0 # s
     GATE_PASS_DIST = 0.10 # m
@@ -197,7 +197,7 @@ class ScanKillian(Planner):
             predictions = self.model.predict(frame, conf=0.5, iou=0.7, verbose=False)
 
             # Expect only one prediction
-            if len(predictions) < 1 or 1 < len(predictions):
+            if len(predictions) != 1:
                 return []
 
             # Expect result to contain a keypoints attribute
