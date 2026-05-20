@@ -44,10 +44,10 @@ class ScanVincent(Planner):
     # BLIND_DRIFT_SPEED   = 0.2    # m/s — drift toward centre during blind search
 
     # Speeds (Scaled by dt for consistent physical movement)
-    FORWARD_SPEED       = 3.0    # m/s (Increased 10x to match your old speed)
-    ORBIT_BASE_SPEED    = 9.0    # orbit strafe numerator
-    ORBIT_MAX_SPEED     = 2.0    # m/s (Increased 10x for snappy lateral corrections)
-    BLIND_YAW_RATE      = 4.0    # rad/s (Aggressive spin during search)
+    FORWARD_SPEED       = 7.0    # m/s (Increased 10x to match your old speed)
+    ORBIT_BASE_SPEED    = 10.0    # orbit strafe numerator
+    ORBIT_MAX_SPEED     = 5.0    # m/s (Increased 10x for snappy lateral corrections)
+    BLIND_YAW_RATE      = 5.0    # rad/s (Aggressive spin during search)
     BLIND_DRIFT_SPEED   = 2.0    # m/s (Fast drift toward centre)
     
     # Tolerances
@@ -240,16 +240,19 @@ class ScanVincent(Planner):
 
             new_yaw = yaw + (ScanVincent.BLIND_YAW_RATE * dt)
 
-            # Drift toward room centre so the camera sweeps fresh angles
-            center_x     = ScanVincent.ROOM_X / 2.0
-            center_y     = ScanVincent.ROOM_Y / 2.0
-            vector_x     = center_x - x
-            vector_y     = center_y - y
-            dist_to_center = np.hypot(vector_x, vector_y)
+            # # Drift toward room centre so the camera sweeps fresh angles
+            # center_x     = ScanVincent.ROOM_X / 2.0
+            # center_y     = ScanVincent.ROOM_Y / 2.0
+            # vector_x     = center_x - x
+            # vector_y     = center_y - y
+            # dist_to_center = np.hypot(vector_x, vector_y)
 
-            if dist_to_center > ScanVincent.BLIND_CENTER_RADIUS:
-                new_x = x + (vector_x / dist_to_center) * (ScanVincent.BLIND_DRIFT_SPEED * dt)
-                new_y = y + (vector_y / dist_to_center) * (ScanVincent.BLIND_DRIFT_SPEED * dt)
+            # if dist_to_center > ScanVincent.BLIND_CENTER_RADIUS:
+            #     new_x = x + (vector_x / dist_to_center) * (ScanVincent.BLIND_DRIFT_SPEED * dt)
+            #     new_y = y + (vector_y / dist_to_center) * (ScanVincent.BLIND_DRIFT_SPEED * dt)
+
+            new_x = x
+            new_y = y
 
             if z < ScanVincent.BLIND_Z_TARGET - 0.05 or z > ScanVincent.BLIND_Z_TARGET + 0.05:
                 new_z = z + (ScanVincent.BLIND_Z_TARGET - z) * ScanVincent.BLIND_Z_KP
