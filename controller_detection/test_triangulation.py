@@ -66,8 +66,8 @@ def main():
     # Select indices
     # indices = [7, 11, 15, 17, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29]
     # indices = [11, 15, 22] # 11
-    indices = range(7, 30)
-    indices = range(29, 35)
+    indices = range(7, 40)
+    # indices = range(29, 35)
 
     # Read the video file
     images = extract_frames(video_path, indices)
@@ -149,9 +149,10 @@ def main():
                 pts = np.vstack([bl, tl, tr, br])
                 gate_center = pts.mean(axis=0)
 
-                projection = tr - tl
-                projection[2] = 0.0  # ignore Z component since gates are vertical
-                theta = float(np.arctan2(projection[1], projection[0]))
+                v1 = tl - bl
+                v2 = br - bl
+                gate_normal = np.cross(v1, v2)
+                theta = float(np.arctan2(gate_normal[1], gate_normal[0]))
 
                 print(f" Gate center: {gate_center}, {theta}")
 

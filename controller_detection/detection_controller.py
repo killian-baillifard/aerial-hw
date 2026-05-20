@@ -228,7 +228,7 @@ class DetectionController:
         self.forget_time: float = 1000.0 # ms
         self.matching_threshold: float = 100.0 # pixels, for associating detections to candidates
         self.yolo_conf_threshold: float = 0.5 # confidence threshold for YOLO detections
-        self.model = YOLO('detection_model/models/yolov8n_v2rgb_r1/weights/best.pt')
+        self.model = YOLO('detection_model/models/yolov8n_v4bw_r2/weights/best.pt')
         self.gate_candidates: dict[int, GateCandidate] = {} # dict of GateCandidate objects
         self._next_candidate_id: int = 0
         self.detected_gates: dict[int, GateCandidate] = {} # dict of confirmed Gate objects
@@ -247,11 +247,11 @@ class DetectionController:
             [1,  0,  0]
         ]) # rotation from camera to body frame (Zcam = Xdrone, Xcam = -Ydrone, Ycam = -Zdrone)
         self.camera_translation = np.array([0.03, 0.0, -0.01]) # translation from body to camera frame (x forward, y left, z up)
-        self.focal_length = 210 # focal length in pixels (calculated from FOV and image size)
+        # self.focal_length = 140.23528025 # focal length in pixels (calculated from FOV and image size)
         self.K = np.array([
-            [self.focal_length,   0.0, 160.0],
-            [  0.0, self.focal_length, 160.0],
-            [  0.0,   0.0,   1.0]
+            [140.23528025, 0.0, 169.70725091],
+            [0.0, 141.12756104, 148.24022948],
+            [0.0, 0.0, 1.0]
         ], dtype=np.float64)
 
         # Path through gate

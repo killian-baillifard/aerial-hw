@@ -45,6 +45,7 @@ def train_gate_pose_model():
         # Image composition augmentations (helps with overlap)
         mosaic=0.8,               # Combine 4 images into 1 (highly recommended for overlapping objects)
         mixup=0.15, # 0.1,                # Image mixup (layering images)
+        # copy_paste=0.3,          # Copy-paste augmentation (copies objects from one image to another, great for small datasets and overlapping objects)
         
         # Save settings
         project=os.path.join(current_dir, 'models'),         # Folder name where results are saved

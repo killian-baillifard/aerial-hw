@@ -41,7 +41,7 @@ def test_wrapper(video_path, csv_path):
 
         # wait for a short period to simulate real-time processing (optional)
         #cv2.waitKey(1000) 
-        cv2.waitKey(333)  # Adjust the delay as needed - 333 ms simulates ~3 FPS
+        # cv2.waitKey(333)  # Adjust the delay as needed - 333 ms simulates ~3 FPS
 
         frame_index += 1
 

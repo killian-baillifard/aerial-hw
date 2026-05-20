@@ -64,8 +64,9 @@ def main():
     csv_path = '../saved_recordings/2026-05-13-14-55-19.csv'
 
     # Explicitly define two (or more) frame indices to use for manual triangulation
-    indices = [11, 15, 22] 
-    indices = range(11, 25)
+    indices = [11, 15, 21]
+    # indices = [22, 25, 27, 36, 37]
+    # indices = range(11, 25)
     # 0.80, y: -0.93, z: 1.39, yaw: 1.39
     
     # === load data ===
@@ -183,9 +184,10 @@ def main():
             pts = np.vstack([bl, tl, tr, br])
             gate_center = pts.mean(axis=0)
 
-            projection = bl - br
-            projection[2] = 0.0  # ignore Z component since gates are vertical
-            theta = float(np.arctan2(projection[1], projection[0]))
+            v1 = tl - bl
+            v2 = br - bl
+            gate_normal = np.cross(v1, v2)
+            theta = float(np.arctan2(gate_normal[1], gate_normal[0]))
 
             print(f" Gate center: {gate_center}, {theta}")
     else:

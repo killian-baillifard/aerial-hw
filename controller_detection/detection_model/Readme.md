@@ -160,6 +160,22 @@ pip install -r requirements.txt
 
 Go to ```detection_model```folder and run ```python training_YOLOv8-Pose.py```.
 
+### Improve Model Performance
+
+- **Data Augmentation**: Experiment with different augmentation techniques (e.g., rotation, scaling, color jitter) to increase dataset diversity.
+- **Hyperparameter Tuning**: Adjust learning rate, batch size, and number of epochs to find the optimal training configuration.
+- **Model Architecture**: Try different YOLOv8 variants (e.g., YOLOv8m, YOLOv8l) for potentially better performance at the cost of increased computational requirements.
+- **Transfer Learning**: Start with pre-trained weights on a similar dataset to speed up convergence and improve accuracy, especially if the dataset is small.
+
+### Further Possible Actions
+
+- **copy_paste Augmentation** 1a
+- **More Training Epochs** 1a
+- **Larger Model Variants** 1b
+- **Dataset Enhancement**: 2
+- **Undistorted Pipeline** 1c
+- **Close-ups of Corners** 2
+- **Train upon v3bw_r1 model** 1d
 
 ## Inference
 
