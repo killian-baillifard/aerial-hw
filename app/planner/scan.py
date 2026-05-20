@@ -41,7 +41,24 @@ class Scan(Planner):
         gates_directory = os.path.join("gates")
         file_name = os.listdir(gates_directory)[0]
         file_path = os.path.join(gates_directory, file_name)
-        raw_csv_data = np.loadtxt(file_path, delimiter=',', dtype=float, ndmin=2)
+        with open(file_path, 'r', encoding='utf-8') as _f:
+            first_line = _f.readline()
+        tokens = [t.strip() for t in first_line.split(',') if t.strip() != '']
+        has_header = False
+        for t in tokens:
+            try:
+                float(t)
+            except Exception:
+                has_header = True
+                break
+        if has_header:
+            raw_csv_data = np.genfromtxt(file_path, delimiter=',', dtype=float, ndmin=2,
+                                         skip_header=1, filling_values=np.nan)
+        else:
+            raw_csv_data = np.genfromtxt(file_path, delimiter=',', dtype=float, ndmin=2,
+                                         filling_values=np.nan)
+
+        # ensure we have an array (handles scalar rows) and test for any NaNs
         row0 = np.atleast_1d(raw_csv_data[0])
         if not np.isnan(row0).any():
             positions: list[glm.vec3]   = [glm.vec3(col[1], col[2], col[3]) for col in raw_csv_data]
