@@ -30,7 +30,7 @@ MODELS: dict[str, str] = {
     # Add / remove entries freely – dict key becomes the column header
 }
 
-TEST_DATASET = "../dataset/annotated_gates_v3bw_split/val/"
+TEST_DATASET = "../dataset/annotated_gates_v5d"
 
 # Inference / val settings
 IMGSZ    = 320
