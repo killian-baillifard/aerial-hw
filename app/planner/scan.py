@@ -35,6 +35,8 @@ class Scan(Planner):
         self.waypoints.append(Scan.INITIAL_SETPOINT)
         self.state = Scan.State.REACH_WAYPOINT
         self.stabilization_timeout = 0.0
+        self.gates = []
+        self.sim_gates = []
         self.load_sim()
 
     def load_sim(self) -> None:
@@ -61,6 +63,7 @@ class Scan(Planner):
         # If the CSV is empty, genfromtxt returns an empty array — handle that gracefully.
         if raw_csv_data.size == 0:
             self.gates = []
+            self.sim_gates = []
             return
 
         # ensure we have an array (handles scalar rows) and test for any NaNs
