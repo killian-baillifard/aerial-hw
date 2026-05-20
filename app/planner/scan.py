@@ -58,6 +58,11 @@ class Scan(Planner):
             raw_csv_data = np.genfromtxt(file_path, delimiter=',', dtype=float, ndmin=2,
                                          filling_values=np.nan)
 
+        # If the CSV is empty, genfromtxt returns an empty array — handle that gracefully.
+        if raw_csv_data.size == 0:
+            self.gates = []
+            return
+
         # ensure we have an array (handles scalar rows) and test for any NaNs
         row0 = np.atleast_1d(raw_csv_data[0])
         if not np.isnan(row0).any():
