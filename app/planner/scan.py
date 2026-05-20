@@ -35,14 +35,40 @@ class Scan(Planner):
         self.waypoints.append(Scan.INITIAL_SETPOINT)
         self.state = Scan.State.REACH_WAYPOINT
         self.stabilization_timeout = 0.0
+        self.gates = []
+        self.sim_gates = []
         self.load_sim()
 
     def load_sim(self) -> None:
         gates_directory = os.path.join("gates")
         file_name = os.listdir(gates_directory)[0]
         file_path = os.path.join(gates_directory, file_name)
-        raw_csv_data: np.ndarray    = np.genfromtxt(file_path, delimiter=',')[1:]
-        if not any(np.isnan(raw_csv_data[0])):
+        with open(file_path, 'r', encoding='utf-8') as _f:
+            first_line = _f.readline()
+        tokens = [t.strip() for t in first_line.split(',') if t.strip() != '']
+        has_header = False
+        for t in tokens:
+            try:
+                float(t)
+            except Exception:
+                has_header = True
+                break
+        if has_header:
+            raw_csv_data = np.genfromtxt(file_path, delimiter=',', dtype=float, ndmin=2,
+                                         skip_header=1, filling_values=np.nan)
+        else:
+            raw_csv_data = np.genfromtxt(file_path, delimiter=',', dtype=float, ndmin=2,
+                                         filling_values=np.nan)
+
+        # If the CSV is empty, genfromtxt returns an empty array — handle that gracefully.
+        if raw_csv_data.size == 0:
+            self.gates = []
+            self.sim_gates = []
+            return
+
+        # ensure we have an array (handles scalar rows) and test for any NaNs
+        row0 = np.atleast_1d(raw_csv_data[0])
+        if not np.isnan(row0).any():
             positions: list[glm.vec3]   = [glm.vec3(col[1], col[2], col[3]) for col in raw_csv_data]
             yaws: list[float]           = [wrap(col[4]) for col in raw_csv_data]
             self.sim_gates              = [Setpoint(position, yaw) for position, yaw in zip(positions, yaws)]

@@ -28,8 +28,13 @@ class Race(Planner):
         # Load and parse gates coordinates
         # - Assume it's a csv with columns (Gate, x, y, z, theta, width, height)
         # - Assume first row is a header, pop it
-        raw_csv_data: np.ndarray    = np.genfromtxt(file_path, delimiter=',')[1:]
-        if not any(np.isnan(raw_csv_data[0])):
+        raw_csv_data = np.genfromtxt(file_path, delimiter=',', dtype=float, ndmin=2, filling_values=np.nan)
+        if raw_csv_data.size == 0:
+            # no sim data -> leave gates empty
+            self.gates = []
+            return
+        row0 = np.atleast_1d(raw_csv_data[0])
+        if not np.isnan(row0).any():
             positions: list[glm.vec3]   = [glm.vec3(col[1], col[2], col[3]) for col in raw_csv_data]
             yaws: list[float]           = [wrap(col[4]) for col in raw_csv_data]
             self.gates                  = [Setpoint(position, yaw) for position, yaw in zip(positions, yaws)]

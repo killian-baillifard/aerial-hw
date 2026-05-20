@@ -27,6 +27,7 @@ class Scan(Planner):
     YAW_KP              = 0.015  # horizontal pixel error → yaw correction
     FORWARD_STEP        = 0.15   # m pushed ahead per tick in FORWARD state
     ORBIT_BASE_SPEED    = 9.0    # orbit strafe numerator (divided by gate height)
+    ORBIT_MAX_SPEED     = 0.10   # m/tick — cap on lateral correction
     ALTITUDE_THRESH     = 15.0   # px — vertical error band to leave ALTITUDE state
     ALTITUDE_OVERRIDE   = 25.0   # px — vertical error that forces re-entry to ALTITUDE
     ALIGN_TOLERANCE     = 10.0   # px — h_left/h_right diff band to leave ORBIT state
@@ -182,13 +183,15 @@ class Scan(Planner):
 
             elif self.align_state == Scan.AlignState.ORBIT:
                 if abs(height_diff) > Scan.ALIGN_TOLERANCE:
-                    strafe_speed = Scan.ORBIT_BASE_SPEED / (max_h + 1e-5)
-                    if height_diff > 0:    # drone is left of centre → strafe right
-                        new_x = x + strafe_speed * np.sin(yaw)
-                        new_y = y - strafe_speed * np.cos(yaw)
-                    else:                  # drone is right of centre → strafe left
-                        new_x = x - strafe_speed * np.sin(yaw)
-                        new_y = y + strafe_speed * np.cos(yaw)
+                    # Proportional: larger asymmetry → faster strafe, capped at a max speed
+                    strafe_speed = np.clip(
+                        height_diff * Scan.ORBIT_BASE_SPEED / (max_h + 1e-5),
+                        -Scan.ORBIT_MAX_SPEED,
+                        Scan.ORBIT_MAX_SPEED
+                    )
+                    # Positive speed strafes left (corrects rightward offset), negative strafes right
+                    new_x = x - strafe_speed * np.sin(yaw)
+                    new_y = y + strafe_speed * np.cos(yaw)
                 else:
                     self.align_state = Scan.AlignState.FORWARD
 
