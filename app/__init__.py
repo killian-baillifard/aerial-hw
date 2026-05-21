@@ -1,5 +1,8 @@
 import numpy as np
 from enum import Enum
+import socket
+from contextlib import contextmanager
+
 
 class ControlMode(Enum):
     MANUAL  = 0
@@ -17,3 +20,15 @@ class FlightStatus(Enum):
 
 def wrap(x: float) -> float:
     return ((x + np.pi) % (2 * np.pi)) - np.pi
+
+@contextmanager
+def no_network():
+    _orig_getaddrinfo = socket.getaddrinfo
+    _orig_connect = socket.socket.connect
+    socket.getaddrinfo = lambda *a, **k: (_ for _ in ()).throw(OSError("blocked"))
+    socket.socket.connect = lambda self, addr: (_ for _ in ()).throw(OSError("blocked"))
+    try:
+        yield
+    finally:
+        socket.getaddrinfo = _orig_getaddrinfo
+        socket.socket.connect = _orig_connect
