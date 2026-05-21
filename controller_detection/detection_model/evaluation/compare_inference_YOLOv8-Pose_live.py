@@ -10,13 +10,13 @@ import sys
 
 MODELS = {
     "YOLOv8n v2rgb2": "../models/yolov8n_v2rgb_r2/weights/best.pt",
-    "YOLOv8n v2bwr1": "../models/yolov8n_v2bw_r1/weights/best.pt",
     "YOLOv8n v3bwr1": "../models/yolov8n_v3bw_r1/weights/best.pt",
     "YOLOv8n v4bwr2": "../models/yolov8n_v4bw_r2/weights/best.pt",
+    "YOLOv8n v5mixed1": "../models/yolov8n_v5mixed_r1/weights/best.pt",
     # Add / remove entries freely – dict key becomes the column header
 }
 
-TEST_FOLDER = "../dataset/annotated_gates_v5d_test/test/images/"
+TEST_FOLDER = "test/2026-05-21-03-12-58"
 BATCH_SIZE  = 4
 
 # Inference settings
