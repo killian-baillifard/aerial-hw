@@ -24,9 +24,9 @@ class ScanVincent(Planner):
     # Waypoints and logic bounds
     SCAN_YAWS = [-45, 0, 75, 130, 180, 180]
     INITIAL_SETPOINT = Setpoint(Planner.HOME_POSITION, np.deg2rad(SCAN_YAWS[0]))
-    STABILIZATION_TIMEOUT = 2.0  # s
+    STABILIZATION_TIMEOUT = 5.0  # s
     GATE_PASS_DIST = 0.10        # m
-    ORBIT_START_DIST = 1.5       # m — How close to get before stopping to orbit
+    ORBIT_START_DIST = 0.9       # m — How close to get before stopping to orbit
 
     # Physical Room Dimensions
     ROOM_X = 4.05
@@ -44,9 +44,9 @@ class ScanVincent(Planner):
     # BLIND_DRIFT_SPEED   = 0.2    # m/s — drift toward centre during blind search
 
     # Speeds (Scaled by dt for consistent physical movement)
-    FORWARD_SPEED       = 7.0    # m/s (Increased 10x to match your old speed)
-    ORBIT_BASE_SPEED    = 10.0    # orbit strafe numerator
-    ORBIT_MAX_SPEED     = 5.0    # m/s (Increased 10x for snappy lateral corrections)
+    FORWARD_SPEED       = 9.0    # m/s (Increased 10x to match your old speed)
+    ORBIT_BASE_SPEED    = 12.0    # orbit strafe numerator
+    ORBIT_MAX_SPEED     = 7.0    # m/s (Increased 10x for snappy lateral corrections)
     BLIND_YAW_RATE      = 5.0    # rad/s (Aggressive spin during search)
     BLIND_DRIFT_SPEED   = 2.0    # m/s (Fast drift toward centre)
     
@@ -219,9 +219,9 @@ class ScanVincent(Planner):
                 new_x = x + (ScanVincent.FORWARD_SPEED * dt) * np.cos(yaw)
                 new_y = y + (ScanVincent.FORWARD_SPEED * dt) * np.sin(yaw)
                 
-                # Safety fallback: If we drift horribly off-center at the last second, fix it
-                if abs(height_diff) > ScanVincent.ALIGN_TOLERANCE * 2:
-                    self.align_state = ScanVincent.AlignState.ORBIT
+                # # Safety fallback: If we drift horribly off-center at the last second, fix it
+                # if abs(height_diff) > ScanVincent.ALIGN_TOLERANCE * 2:
+                #     self.align_state = ScanVincent.AlignState.ORBIT
 
             # ── Gate confirmation: once we are close enough, commit it ────────
             if gate.distance <= ScanVincent.GATE_PASS_DIST * 2:

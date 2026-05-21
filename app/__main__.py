@@ -5,6 +5,7 @@ from app.gui.audio import Audio
 from app.io import Command
 from app.io.controller import Controller
 from app.io.keyboard import Keyboard
+from app.planner.racer import RacerPlanner
 from app.telemetry import Telemetry
 from app.planner import Planner
 from app.planner.scan_killian import ScanKillian
@@ -35,7 +36,8 @@ class App:
             "SCAN VIN": ScanVincent(),
             "RACE SLOW": Race(speed=0.25),
             "RACE MID": Race(speed=0.5),
-            "RACE FAST": Race(speed=1.0)
+            "RACE FAST": Race(speed=1.0),
+            "RACER": RacerPlanner()
         }
         self.selected_planner = next(iter(self.planners))
 
