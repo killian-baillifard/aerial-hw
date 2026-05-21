@@ -148,8 +148,6 @@ class App:
                 scan_planner: ScanKillian = self.planners["SCAN KIL"]
                 gates = scan_planner.find_gates(frame, measurement, flags)
                 scan_planner.gates_detected_event(gates)
-                if len(gates) > 0:
-                    print(gates[0])
 
             # Skip command to run playback (to give test images for planner to try inferences)
             if self.gui.layout.playback_btn.latched:

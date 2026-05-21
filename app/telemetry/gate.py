@@ -28,7 +28,6 @@ class Gate:
         ray_br = Ray(br, measurement.position, measurement.rotation)
 
         def vertical_angle(ray_direction: glm.vec3) -> float:
-            """Elevation angle of a ray (angle above/below horizontal plane)."""
             horizontal = glm.length(glm.vec2(ray_direction.x, ray_direction.y))
             return np.arctan2(ray_direction.z, horizontal)
 
@@ -37,7 +36,7 @@ class Gate:
         elev_tr = vertical_angle(ray_tr.direction)
         elev_br = vertical_angle(ray_br.direction)
 
-        # Distance to left/right edges using elevation difference
+        # Distance to left / right edges using elevation difference
         dl = Gate.HEIGHT / (np.tan(elev_tl) - np.tan(elev_bl))
         dr = Gate.HEIGHT / (np.tan(elev_tr) - np.tan(elev_br))
 
@@ -59,8 +58,8 @@ class Gate:
                     z_center_r)
 
         # Gate center position
-        self.center = (pl + pr) / 2
-        self.distance = glm.distance(measurement.position, self.center)
+        self.position = (pl + pr) / 2
+        self.distance = glm.distance(measurement.position, self.position)
 
         # Gate yaw from axis in world space
         gate_axis = glm.normalize(pr - pl)
@@ -68,4 +67,4 @@ class Gate:
         self.yaw  = np.arctan2(self.normal.y, self.normal.x)
 
     def __str__(self) -> str:
-        return "Gate(" + str(self.center) + " " + str(self.yaw) + ")"
+        return "Gate(" + str(self.position) + " " + str(self.yaw) + ")"

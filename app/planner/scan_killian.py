@@ -38,6 +38,7 @@ class ScanKillian(Planner):
         self.stabilization_timeout = 0.0
         self.gates = []
         self.sim_gates = []
+        self.i = 0
         self.load_sim()
 
     def load_sim(self) -> None:
@@ -84,13 +85,14 @@ class ScanKillian(Planner):
         self.waypoints.append(ScanKillian.INITIAL_SETPOINT)
         self.state = ScanKillian.State.REACH_WAYPOINT
         self.stabilization_timeout = 0.0
+        self.i = 0
         self.load_sim()
 
     @overrides
     def update(self, measurement: Measurement, frame: MatLike, flags: Telemetry.Flags, dt: float) -> Setpoint:
 
         # Automatic interpolation to last waypoint in list
-        setpoint, reached = Planner.reach(self.waypoints[-1], measurement, 0.25)
+        setpoint, reached = Planner.reach(self.waypoints[self.i], measurement, 0.25)
 
         # Run inference on each incoming image (for visualization purposes)
         if Telemetry.Flags.NEW_FRAME in flags:
@@ -106,6 +108,11 @@ class ScanKillian(Planner):
                 # Waypoint reached
                 if reached:
 
+                    # Odd i always happend before a gate, go through
+                    if self.i % 2 != 0:
+                        self.i += 1
+                        return self.update(measurement, frame, flags, dt)
+
                     # Look for next gate until 5 were found
                     if len(self.gates) < 5:
                         self.state = ScanKillian.State.STABILIZE
@@ -114,6 +121,7 @@ class ScanKillian(Planner):
                     # All gates have been crossed, return home
                     else:
                         self.waypoints.append(Planner.HOME_SETPOINT)
+                        self.i += 1
                         self.state = ScanKillian.State.END
                         return self.update(measurement, frame, flags, dt)
 
@@ -135,17 +143,22 @@ class ScanKillian(Planner):
 
                     # Keep closest gate
                     gate = gates[0]
+                    self.gates.append(Setpoint(gate.position, gate.yaw))
 
-                    # Compute next waypoint
-                    target_yaw = np.deg2rad(ScanKillian.SCAN_YAWS[len(self.waypoints)])
-                    target_position = gate.position + gate.normal * ScanKillian.GATE_PASS_DIST
-                    next_setpoint = Setpoint(target_position, target_yaw)
+                    # Add waypoint before the gate
+                    self.waypoints.append(Setpoint(
+                        gate.position - gate.normal * ScanKillian.GATE_PASS_DIST,
+                        gate.yaw
+                    ))
 
-                    # Append it to lists
-                    self.gates.append(next_setpoint)
-                    self.waypoints.append(next_setpoint)
+                    # Add waypoint after the gate
+                    self.waypoints.append(Setpoint(
+                        gate.position + gate.normal * ScanKillian.GATE_PASS_DIST,
+                        np.deg2rad(ScanKillian.SCAN_YAWS[(self.i + 2) // 2])
+                    ))
 
-                    # Reach gate center
+                    # Reach next waypoint
+                    self.i += 1
                     self.state = ScanKillian.State.REACH_WAYPOINT
                     return self.update(measurement, frame, flags, dt)
                     
