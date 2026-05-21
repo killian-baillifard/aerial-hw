@@ -4,12 +4,12 @@ import numpy as np
 # Both app/planner/racer.py and controller_speed/visulazitaion_v2.0.py import from here
 # so tuning one constant updates both the drone trajectory and the visualization.
 
-Z_BIAS_MAX    = 0.10    # m  — hard cap on z shift from gate center
+Z_BIAS_MAX    = 0.20    # m  — hard cap on z shift from gate center
 Z_BIAS_BASE   = 0.01    # m  — minimum shift when slope exceeds deadband
 Z_BIAS_EXTRA  = 0.05    # m  — additional shift scaled by slope boost
 Z_SLOPE_START = 0.10    # dz/dxy — slope at which boost begins
 Z_SLOPE_FULL  = 0.40    # dz/dxy — slope at which boost is maximal
-Z_DEADBAND    = 0.05    # m  — height difference below which no shift is applied
+Z_DEADBAND    = 0.03    # m  — height difference below which no shift is applied
 
 
 def compute_z_shift(prev_xyz, next_xyz) -> float:
