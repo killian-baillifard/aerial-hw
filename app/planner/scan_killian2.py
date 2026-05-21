@@ -162,17 +162,19 @@ class ScanKillian2(Planner):
                         yaw = measurement.rotation.z
                         forward = glm.vec3(np.cos(yaw), np.sin(yaw), 0.0)
                         left = glm.vec3(np.cos(yaw + np.pi / 2), np.sin(yaw + np.pi / 2), 0.0)
-                        if too_high and too_low and too_left and too_right:
-                            self.waypoints[-1].position -= ScanKillian2.GATE_PASS_DIST * forward
+                        if too_high:
+                            self.waypoints[-1].position += ScanKillian2.GATE_PASS_DIST * UP
+                        elif too_low:
+                            self.waypoints[-1].position -= ScanKillian2.GATE_PASS_DIST * UP
                         else:
-                            if too_high:
-                                self.waypoints[-1].position += ScanKillian2.GATE_PASS_DIST * UP
-                            if too_low:
-                                self.waypoints[-1].position -= ScanKillian2.GATE_PASS_DIST * UP
-                            if too_left:
-                                self.waypoints[-1].position += ScanKillian2.GATE_PASS_DIST * left
-                            if too_right:
-                                self.waypoints[-1].position -= ScanKillian2.GATE_PASS_DIST * left
+                            self.waypoints[-1].position -= ScanKillian2.GATE_PASS_DIST * forward
+                        
+                        if too_left:
+                            self.waypoints[-1].position += ScanKillian2.GATE_PASS_DIST * left
+                        elif too_right:
+                            self.waypoints[-1].position -= ScanKillian2.GATE_PASS_DIST * left
+                        else:
+                            self.waypoints[-1].position -= ScanKillian2.GATE_PASS_DIST * forward
 
                         # Move in a better position
                         self.state = ScanKillian2.State.REACH_WAYPOINT
