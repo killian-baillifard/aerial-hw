@@ -36,19 +36,19 @@ class ScanVincent(Planner):
     ALTITUDE_KP         = 0.002  # vertical error → z correction
     YAW_KP              = 0.015  # horizontal pixel error → yaw correction
     
-    # # Speeds (Scaled by dt for consistent physical movement)
-    # FORWARD_SPEED       = 0.3    # m/s — push ahead speed
-    # ORBIT_BASE_SPEED    = 9.0    # orbit strafe numerator (divided by gate height)
-    # ORBIT_MAX_SPEED     = 0.2    # m/s — cap on lateral correction
-    # BLIND_YAW_RATE      = 0.5    # rad/s — spin speed during blind search
-    # BLIND_DRIFT_SPEED   = 0.2    # m/s — drift toward centre during blind search
-
     # Speeds (Scaled by dt for consistent physical movement)
-    FORWARD_SPEED       = 9.0    # m/s (Increased 10x to match your old speed)
-    ORBIT_BASE_SPEED    = 12.0    # orbit strafe numerator
-    ORBIT_MAX_SPEED     = 7.0    # m/s (Increased 10x for snappy lateral corrections)
-    BLIND_YAW_RATE      = 5.0    # rad/s (Aggressive spin during search)
-    BLIND_DRIFT_SPEED   = 2.0    # m/s (Fast drift toward centre)
+    FORWARD_SPEED       = 0.3    # m/s — push ahead speed
+    ORBIT_BASE_SPEED    = 9.0    # orbit strafe numerator (divided by gate height)
+    ORBIT_MAX_SPEED     = 0.2    # m/s — cap on lateral correction
+    BLIND_YAW_RATE      = 0.5    # rad/s — spin speed during blind search
+    BLIND_DRIFT_SPEED   = 0.2    # m/s — drift toward centre during blind search
+
+    # # Speeds (Scaled by dt for consistent physical movement)
+    # FORWARD_SPEED       = 9.0    # m/s (Increased 10x to match your old speed)
+    # ORBIT_BASE_SPEED    = 12.0    # orbit strafe numerator
+    # ORBIT_MAX_SPEED     = 7.0    # m/s (Increased 10x for snappy lateral corrections)
+    # BLIND_YAW_RATE      = 5.0    # rad/s (Aggressive spin during search)
+    # BLIND_DRIFT_SPEED   = 2.0    # m/s (Fast drift toward centre)
     
     # Tolerances
     ALIGN_TOLERANCE     = 10.0   # px — h_left/h_right diff band to leave ORBIT state
