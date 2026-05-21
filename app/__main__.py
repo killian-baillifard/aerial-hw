@@ -143,6 +143,14 @@ class App:
                 if self.keyboard.last_space:
                     flags |= Telemetry.Flags.START
 
+            # Show gate detection result when in manual control
+            if self.gui.control_mode == ControlMode.MANUAL:
+                scan_planner: ScanKillian = self.planners["SCAN KIL"]
+                gates = scan_planner.find_gates(frame, measurement, flags)
+                scan_planner.gates_detected_event(gates)
+                if len(gates) > 0:
+                    print(gates[0])
+
             # Skip command to run playback (to give test images for planner to try inferences)
             if self.gui.layout.playback_btn.latched:
                 self.planners[self.selected_planner].update(measurement, frame, flags, dt)

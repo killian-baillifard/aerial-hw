@@ -4,13 +4,22 @@ from pyglm import glm
 FORWARD = glm.vec3(1, 0, 0)
 LEFT = glm.vec3(0, 1, 0)
 UP = glm.vec3(0, 0, 1)
-WIDTH                    = 324                   # px
-HEIGHT                   = 244                   # px
-CAM_FULL_HEIGHT          = 330                   # px
-FOV_Y: float             = 1.0                   # radians
-NEAR_PLANE: float        = 0.001                 # m
-ASPECT_RATIO             = WIDTH / HEIGHT
-PROJECTION: glm.mat4x4   = glm.infinitePerspective(FOV_Y, ASPECT_RATIO, NEAR_PLANE)
+
+WIDTH                   = 324                   # px
+HEIGHT                  = 244                   # px
+
+PIXEL_SIZE              = 3.6e-6                # m
+SENSOR_HEIGHT           = PIXEL_SIZE * HEIGHT
+
+FOV_Y: float            = 1.0                   # radians
+TAN_HALF_FOV_Y = np.tan(FOV_Y / 2)
+FOV_X = 2 * np.arctan(TAN_HALF_FOV_Y * WIDTH / HEIGHT)
+TAN_HALF_FOV_X = np.tan(FOV_X / 2)
+
+NEAR_PLANE              = (SENSOR_HEIGHT / 2) / TAN_HALF_FOV_Y
+ASPECT_RATIO            = WIDTH / HEIGHT
+PROJECTION              = glm.infinitePerspective(FOV_Y, ASPECT_RATIO, NEAR_PLANE)
+
 CLIP_PLANES = [
     lambda v:  v.w + v.z,  # near:   z >= -w
     lambda v:  v.w + v.x,  # left:   x >= -w
