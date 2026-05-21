@@ -24,6 +24,7 @@ import socket
 import struct
 import sys
 
+from cflib.crazyflie.log import LogConfig
 import cflib.crtp
 import cv2
 import numpy as np
@@ -140,9 +141,24 @@ class FPVWindow(QtWidgets.QWidget):
         self.cf.connected.add_callback(self._connected_signal.emit)
         self.cf.open_link(URI)
 
+        self.log_config = LogConfig("FPVController", 0.1)
+        self.log_config.add_variable("stateEstimate.x")
+        self.log_config.add_variable("stateEstimate.y")
+        self.log_config.add_variable("stateEstimate.z")
+        self.log_config.add_variable("stateEstimate.yaw")
+        self.log_config.add_variable("stateEstimate.roll")
+        self.log_config.add_variable("stateEstimate.pitch")
+        self.log_config.data_received_cb.add_callback(self.on_data_received)
+        self.cf.log.add_config(self.log_config)
+        self.log_config.start()
+
         self._timer = QtCore.QTimer(self)
         self._timer.timeout.connect(self._send_setpoint)
         self._timer.setInterval(100)
+
+    def on_data_received(self, timestamp, data, logconf):
+        print(f'{timestamp}: {data}')
+        pass
 
     def _on_connected(self, uri):
         self.status_label.setText(f'Connected to {uri}')
@@ -159,9 +175,11 @@ class FPVWindow(QtWidgets.QWidget):
         self.image_label.setPixmap(QtGui.QPixmap.fromImage(qimg.scaled(w * 2, h * 2)))
 
     def _send_setpoint(self):
+        # self.cf.commander.send_position_setpoint(x, y, z, yaw)
         self.cf.commander.send_hover_setpoint(
             self.hover['x'], self.hover['y'],
             self.hover['yaw'], self.hover['height'])
+
 
     def _update_velocity(self):
         K = QtCore.Qt.Key

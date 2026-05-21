@@ -16,7 +16,7 @@ MODELS = {
     # Add / remove entries freely – dict key becomes the column header
 }
 
-TEST_FOLDER = "../dataset/annotated_gates_v5d/test/images/"
+TEST_FOLDER = "../dataset/annotated_gates_v5d_test/test/images/"
 BATCH_SIZE  = 4
 
 # Inference settings
