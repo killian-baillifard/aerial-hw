@@ -22,6 +22,7 @@ class ScanKillian(Planner):
     INITIAL_SETPOINT = Setpoint(Planner.HOME_POSITION, np.deg2rad(SCAN_YAWS[0]))
     STABILIZATION_TIMEOUT = 4.0 # s
     GATE_PASS_DIST = 0.10 # m
+    CENTERED_TOL = 30
 
     class State(Enum):
         REACH_WAYPOINT = 0
@@ -143,6 +144,41 @@ class ScanKillian(Planner):
 
                     # Keep closest gate
                     gate = gates[0]
+
+                    # Check for gate collisions with image border
+                    too_high = False
+                    too_low = False
+                    too_left = False
+                    too_right = False
+                    for corner in gate.corners:
+                        too_high |= corner.y < ScanKillian.CENTERED_TOL
+                        too_low |= corner.y >  HEIGHT - ScanKillian.CENTERED_TOL
+                        too_left |= corner.x < ScanKillian.CENTERED_TOL
+                        too_right |= corner.x > WIDTH - ScanKillian.CENTERED_TOL
+
+                    # Invalid measurement, cropped gate
+                    centered = not too_high and not too_low and not too_left and not too_right
+                    if not centered:
+                        yaw = measurement.rotation.z
+                        forward = glm.vec3(np.cos(yaw), np.sin(yaw), 0.0)
+                        left = glm.vec3(np.cos(yaw + np.pi / 2), np.sin(yaw + np.pi / 2), 0.0)
+                        if too_high and too_low and too_left and too_right:
+                            self.waypoints[-1].position -= ScanKillian.GATE_PASS_DIST * forward
+                        else:
+                            if too_high:
+                                self.waypoints[-1].position += ScanKillian.GATE_PASS_DIST * UP
+                            if too_low:
+                                self.waypoints[-1].position -= ScanKillian.GATE_PASS_DIST * UP
+                            if too_left:
+                                self.waypoints[-1].position += ScanKillian.GATE_PASS_DIST * left
+                            if too_right:
+                                self.waypoints[-1].position -= ScanKillian.GATE_PASS_DIST * left
+
+                        # Move in a better position
+                        self.state = ScanKillian.State.REACH_WAYPOINT
+                        return self.update(measurement, frame, flags, dt)
+
+                    # Validate measurement
                     self.gates.append(Setpoint(gate.position, gate.yaw))
 
                     # Add waypoint before the gate
