@@ -16,13 +16,12 @@ from ultralytics import YOLO
 MODEL_PATH = os.path.join("controller_detection", "detection_model", "models", "yolov8n_v3bw_r1", "weights", "best.pt")
 ENABLE_TAS_REF_ANGLE = True
 
-class ScanKillian(Planner):
+class ScanKillian1(Planner):
 
     SCAN_YAWS = [-45, 0, 75, 135, 180, 180]
     INITIAL_SETPOINT = Setpoint(Planner.HOME_POSITION, np.deg2rad(SCAN_YAWS[0]))
     STABILIZATION_TIMEOUT = 4.0 # s
     GATE_PASS_DIST = 0.10 # m
-    CENTERED_TOL = 30
 
     class State(Enum):
         REACH_WAYPOINT = 0
@@ -34,12 +33,11 @@ class ScanKillian(Planner):
         super().__init__()
         self.model = YOLO(MODEL_PATH)
         self.model.eval()
-        self.waypoints.append(ScanKillian.INITIAL_SETPOINT)
-        self.state = ScanKillian.State.REACH_WAYPOINT
+        self.waypoints.append(ScanKillian1.INITIAL_SETPOINT)
+        self.state = ScanKillian1.State.REACH_WAYPOINT
         self.stabilization_timeout = 0.0
         self.gates = []
         self.sim_gates = []
-        self.i = 0
         self.load_sim()
 
     def load_sim(self) -> None:
@@ -83,17 +81,16 @@ class ScanKillian(Planner):
     def reload(self) -> None:
         self.waypoints.clear()
         self.gates.clear()
-        self.waypoints.append(ScanKillian.INITIAL_SETPOINT)
-        self.state = ScanKillian.State.REACH_WAYPOINT
+        self.waypoints.append(ScanKillian1.INITIAL_SETPOINT)
+        self.state = ScanKillian1.State.REACH_WAYPOINT
         self.stabilization_timeout = 0.0
-        self.i = 0
         self.load_sim()
 
     @overrides
     def update(self, measurement: Measurement, frame: MatLike, flags: Telemetry.Flags, dt: float) -> Setpoint:
 
         # Automatic interpolation to last waypoint in list
-        setpoint, reached = Planner.reach(self.waypoints[self.i], measurement, 0.25)
+        setpoint, reached = Planner.reach(self.waypoints[-1], measurement, 0.25)
 
         # Run inference on each incoming image (for visualization purposes)
         if Telemetry.Flags.NEW_FRAME in flags:
@@ -104,40 +101,34 @@ class ScanKillian(Planner):
 
         match self.state:
 
-            case ScanKillian.State.REACH_WAYPOINT:
+            case ScanKillian1.State.REACH_WAYPOINT:
 
                 # Waypoint reached
                 if reached:
 
-                    # Odd i always happend before a gate, go through
-                    if self.i % 2 != 0:
-                        self.i += 1
-                        return self.update(measurement, frame, flags, dt)
-
                     # Look for next gate until 5 were found
                     if len(self.gates) < 5:
-                        self.state = ScanKillian.State.STABILIZE
+                        self.state = ScanKillian1.State.STABILIZE
                         return self.update(measurement, frame, flags, dt)
                     
                     # All gates have been crossed, return home
                     else:
                         self.waypoints.append(Planner.HOME_SETPOINT)
-                        self.i += 1
-                        self.state = ScanKillian.State.END
+                        self.state = ScanKillian1.State.END
                         return self.update(measurement, frame, flags, dt)
 
                 # Waypoint not reached yet, keep going
                 else:
                     return setpoint
 
-            case ScanKillian.State.STABILIZE:
+            case ScanKillian1.State.STABILIZE:
                 self.stabilization_timeout += dt
-                if self.stabilization_timeout > ScanKillian.STABILIZATION_TIMEOUT:
+                if self.stabilization_timeout > ScanKillian1.STABILIZATION_TIMEOUT:
                     self.stabilization_timeout = 0
-                    self.state = ScanKillian.State.FIND_GATE
+                    self.state = ScanKillian1.State.FIND_GATE
                 return setpoint
             
-            case ScanKillian.State.FIND_GATE:
+            case ScanKillian1.State.FIND_GATE:
 
                 # Gate detected
                 if len(gates) > 0:
@@ -145,64 +136,24 @@ class ScanKillian(Planner):
                     # Keep closest gate
                     gate = gates[0]
 
-                    # Check for gate collisions with image border
-                    too_high = False
-                    too_low = False
-                    too_left = False
-                    too_right = False
-                    for corner in gate.corners:
-                        too_high |= corner.y < ScanKillian.CENTERED_TOL
-                        too_low |= corner.y >  HEIGHT - ScanKillian.CENTERED_TOL
-                        too_left |= corner.x < ScanKillian.CENTERED_TOL
-                        too_right |= corner.x > WIDTH - ScanKillian.CENTERED_TOL
+                    # Compute next waypoint
+                    target_yaw = np.deg2rad(ScanKillian1.SCAN_YAWS[len(self.waypoints)])
+                    target_position = gate.position + gate.normal * ScanKillian1.GATE_PASS_DIST
+                    next_setpoint = Setpoint(target_position, target_yaw)
 
-                    # Invalid measurement, cropped gate
-                    centered = not too_high and not too_low and not too_left and not too_right
-                    if not centered:
-                        yaw = measurement.rotation.z
-                        forward = glm.vec3(np.cos(yaw), np.sin(yaw), 0.0)
-                        left = glm.vec3(np.cos(yaw + np.pi / 2), np.sin(yaw + np.pi / 2), 0.0)
-                        if too_high and too_low and too_left and too_right:
-                            self.waypoints[-1].position -= ScanKillian.GATE_PASS_DIST * forward
-                        else:
-                            if too_high:
-                                self.waypoints[-1].position += ScanKillian.GATE_PASS_DIST * UP
-                            if too_low:
-                                self.waypoints[-1].position -= ScanKillian.GATE_PASS_DIST * UP
-                            if too_left:
-                                self.waypoints[-1].position += ScanKillian.GATE_PASS_DIST * left
-                            if too_right:
-                                self.waypoints[-1].position -= ScanKillian.GATE_PASS_DIST * left
+                    # Append it to lists
+                    self.gates.append(next_setpoint)
+                    self.waypoints.append(next_setpoint)
 
-                        # Move in a better position
-                        self.state = ScanKillian.State.REACH_WAYPOINT
-                        return self.update(measurement, frame, flags, dt)
-
-                    # Validate measurement
-                    self.gates.append(Setpoint(gate.position, gate.yaw))
-
-                    # Add waypoint before the gate
-                    self.waypoints.append(Setpoint(
-                        gate.position - gate.normal * ScanKillian.GATE_PASS_DIST,
-                        gate.yaw
-                    ))
-
-                    # Add waypoint after the gate
-                    self.waypoints.append(Setpoint(
-                        gate.position + gate.normal * ScanKillian.GATE_PASS_DIST,
-                        np.deg2rad(ScanKillian.SCAN_YAWS[(self.i + 2) // 2])
-                    ))
-
-                    # Reach next waypoint
-                    self.i += 1
-                    self.state = ScanKillian.State.REACH_WAYPOINT
+                    # Reach gate center
+                    self.state = ScanKillian1.State.REACH_WAYPOINT
                     return self.update(measurement, frame, flags, dt)
                     
                 # Gate not found, stay static
                 else:
                     return setpoint
                 
-            case ScanKillian.State.END:
+            case ScanKillian1.State.END:
                 return setpoint
 
     def find_gates(self, frame: MatLike, measurement: Measurement, flags: Telemetry.Flags) -> list[Gate]:
@@ -230,7 +181,7 @@ class ScanKillian(Planner):
 
                 # Transform to clip space and cull gates outside screen
                 clip = world2clip(v, world)
-                if sum(any(plane(c) < 0 for plane in CLIP_PLANES) for c in clip) >= 1:
+                if sum(any(plane(c) < 0 for plane in CLIP_PLANES) for c in clip) >= 3:
                     continue
                 
                 # Transform gates to screen space and clamp them to border if necessary
