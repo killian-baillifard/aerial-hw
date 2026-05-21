@@ -27,7 +27,7 @@ class App:
         self.keyboard       = Keyboard()
         self.telemetry      = Telemetry(self.gui.layout.scene.overlay)
         self.recorder       = Recorder()
-        self.playback       = Playback("2026-05-13-14-52-04")
+        self.playback       = Playback("2026-05-21-03-12-58")
         self.flight_status  = FlightStatus.LANDED
         self.planners: dict[str, Planner] = {
             "SCAN KIL": ScanKillian(),
