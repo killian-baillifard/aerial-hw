@@ -37,20 +37,18 @@ class RacerPlanner(Planner):
         self.waypoints.append(Setpoint(RacerPlanner.HOME_SETPOINT.position, home_to_first_gate_yaw))
 
         # Flatten gates for 2 laps, then build pre/center/post triplet per gate.
-        # Pre and post z are offset by a small slope-proportional bias derived from
-        # the height trend across each gate (prev -> next), matching the approach used
-        # in my_assignment.py _build_race_gate_triplet.
+        # Pre and post z are shaped asymmetrically: pre uses the incoming slope
+        # (prev -> gate) and post uses the outgoing slope (gate -> next) independently.
         lapped_gates = self.gates * 2
         home_pos = RacerPlanner.HOME_SETPOINT.position
 
         for i, gate in enumerate(lapped_gates):
-            prev_pos = lapped_gates[i - 1].position if i > 0          else home_pos
+            prev_pos = lapped_gates[i - 1].position if i > 0                    else home_pos
             next_pos = lapped_gates[i + 1].position if i < len(lapped_gates) - 1 else home_pos
 
-            z_shift = compute_z_shift(
-                [prev_pos.x, prev_pos.y, prev_pos.z],
-                [next_pos.x, next_pos.y, next_pos.z]
-            )
+            g = [gate.position.x, gate.position.y, gate.position.z]
+            pre_shift  = compute_z_shift([prev_pos.x, prev_pos.y, prev_pos.z], g)
+            post_shift = compute_z_shift(g, [next_pos.x, next_pos.y, next_pos.z])
 
             normal = glm.vec3(
                 RacerPlanner.APPROACH_DIST * np.cos(gate.yaw),
@@ -60,9 +58,9 @@ class RacerPlanner(Planner):
             pre_pos  = gate.position - normal
             post_pos = gate.position + normal
 
-            self.waypoints.append(Setpoint(glm.vec3(pre_pos.x,  pre_pos.y,  gate.position.z - 0.5 * z_shift), gate.yaw))
+            self.waypoints.append(Setpoint(glm.vec3(pre_pos.x,  pre_pos.y,  gate.position.z - 0.5 * pre_shift),  gate.yaw))
             self.waypoints.append(Setpoint(gate.position, gate.yaw))
-            self.waypoints.append(Setpoint(glm.vec3(post_pos.x, post_pos.y, gate.position.z + 0.5 * z_shift), gate.yaw))
+            self.waypoints.append(Setpoint(glm.vec3(post_pos.x, post_pos.y, gate.position.z + 0.5 * post_shift), gate.yaw))
 
         # Return to home position at the end
         self.waypoints.append(RacerPlanner.HOME_SETPOINT)

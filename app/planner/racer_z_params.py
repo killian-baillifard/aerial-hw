@@ -4,34 +4,36 @@ import numpy as np
 # Both app/planner/racer.py and controller_speed/visulazitaion_v2.0.py import from here
 # so tuning one constant updates both the drone trajectory and the visualization.
 
-Z_BIAS_MAX    = 0.20    # m  — hard cap on z shift from gate center
+Z_BIAS_MAX    = 0.30    # m  — hard cap on z shift from gate center
 Z_BIAS_BASE   = 0.01    # m  — minimum shift when slope exceeds deadband
-Z_BIAS_EXTRA  = 0.05    # m  — additional shift scaled by slope boost
+Z_BIAS_EXTRA  = 0.10    # m  — additional shift scaled by slope boost
+#Less aggressive
+#Z_BIAS_EXTRA  = 0.05
+#More aggressive
+#Z_BIAS_EXTRA  = 0.20
 Z_SLOPE_START = 0.10    # dz/dxy — slope at which boost begins
-Z_SLOPE_FULL  = 0.40    # dz/dxy — slope at which boost is maximal
+Z_SLOPE_FULL  = 0.20    # dz/dxy — slope at which boost is maximal
 Z_DEADBAND    = 0.03    # m  — height difference below which no shift is applied
 
 
-def compute_z_shift(prev_xyz, next_xyz) -> float:
+def compute_z_shift(from_xyz, to_xyz) -> float:
     """
-    Slope-proportional z bias for the pre/post waypoints around a gate.
+    Slope-proportional z shift for one gate transition segment.
 
-    Parameters
-    ----------
-    prev_xyz : array-like [x, y, z]  — previous gate center (or home)
-    next_xyz : array-like [x, y, z]  — next gate center (or home)
+    Call twice per gate — asymmetrically:
+        pre_shift  = compute_z_shift(prev_gate, current_gate)
+        post_shift = compute_z_shift(current_gate, next_gate)
 
-    Returns
-    -------
-    z_shift : float
-        Positive means next gate is higher than prev (drone climbs through).
-        Apply as:  pre_z  = gate_z - 0.5 * z_shift
-                   post_z = gate_z + 0.5 * z_shift
+        pre_z  = gate_z - 0.5 * pre_shift
+        post_z = gate_z + 0.5 * post_shift
+
+    This way pre reflects the actual incoming slope and post reflects
+    the actual outgoing slope independently, allowing asymmetric shaping.
     """
-    prev  = np.asarray(prev_xyz, dtype=float)
-    next_ = np.asarray(next_xyz, dtype=float)
+    from_ = np.asarray(from_xyz, dtype=float)
+    to_   = np.asarray(to_xyz,   dtype=float)
 
-    delta  = next_ - prev
+    delta  = to_ - from_
     xy_len = float(np.linalg.norm(delta[:2]))
     dz     = float(delta[2])
 

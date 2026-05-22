@@ -8,8 +8,9 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from csv_gates import load_gates_csv, GATE_SOURCE
 
 # Shared z-shaping parameters and formula (single source of truth with app/planner/racer.py)
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from app.planner.racer_z_params import compute_z_shift
+# Import directly by path to avoid triggering app/planner/__init__.py (which needs pyglm)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app", "planner"))
+from racer_z_params import compute_z_shift
 
 # =========================
 # Real arena dimensions [m]
@@ -194,6 +195,7 @@ def build_trajectory_room_coords(poses: np.ndarray):
         prev_gi = lapped_idx[lap_i - 1] if lap_i > 0 else None
         next_gi = lapped_idx[lap_i + 1] if lap_i < len(lapped_idx) - 1 else None
 
+        gate_xyz = [x, y, z]
         prev_xyz = (
             [poses[prev_gi, 0], poses[prev_gi, 1], poses[prev_gi, 2]]
             if prev_gi is not None else home_xyz
@@ -203,19 +205,20 @@ def build_trajectory_room_coords(poses: np.ndarray):
             if next_gi is not None else home_xyz
         )
 
-        z_shift = compute_z_shift(prev_xyz, next_xyz)
+        pre_shift  = compute_z_shift(prev_xyz, gate_xyz)
+        post_shift = compute_z_shift(gate_xyz, next_xyz)
 
         dx, dy  = np.cos(yaw), np.sin(yaw)
         x_room  = DRONE_ORIGIN_XY[0] + x
         y_room  = DRONE_ORIGIN_XY[1] + y
 
-        wps.append([x_room - APPROACH_DIST * dx, y_room - APPROACH_DIST * dy, z - 0.5 * z_shift])
+        wps.append([x_room - APPROACH_DIST * dx, y_room - APPROACH_DIST * dy, z - 0.5 * pre_shift])
         types.append("pre")
 
         wps.append([x_room, y_room, z])
         types.append("center")
 
-        wps.append([x_room + APPROACH_DIST * dx, y_room + APPROACH_DIST * dy, z + 0.5 * z_shift])
+        wps.append([x_room + APPROACH_DIST * dx, y_room + APPROACH_DIST * dy, z + 0.5 * post_shift])
         types.append("post")
 
     cruise_z = float(poses[-1][2])
