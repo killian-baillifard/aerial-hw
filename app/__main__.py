@@ -22,7 +22,6 @@ class App:
     MIN_PERIOD = 1.0 / MAX_FRAMERATE
 
     def __init__(self) -> None:
-
         # Initialize application modules
         self.gui            = Gui()
         self.controller     = Controller()
