@@ -22,7 +22,8 @@ class ScanKillian2(Planner):
     INITIAL_SETPOINT = Setpoint(Planner.HOME_POSITION, np.deg2rad(SCAN_YAWS[0]))
     STABILIZATION_TIMEOUT = 4.0 # s
     GATE_PASS_DIST = 0.15 # m
-    CENTERED_TOL = 30
+    Y_CENTERED_TOL = int(np.ceil(float(HEIGHT) / 10))
+    X_CENTERED_TOL = int(np.ceil(float(WIDTH) / 10))
 
     class State(Enum):
         REACH_WAYPOINT = 0
@@ -151,10 +152,10 @@ class ScanKillian2(Planner):
                     too_left = False
                     too_right = False
                     for corner in gate.corners:
-                        too_high |= corner.y < ScanKillian2.CENTERED_TOL
-                        too_low |= corner.y >  HEIGHT - ScanKillian2.CENTERED_TOL
-                        too_left |= corner.x < ScanKillian2.CENTERED_TOL
-                        too_right |= corner.x > WIDTH - ScanKillian2.CENTERED_TOL
+                        too_high |= corner.y < ScanKillian2.Y_CENTERED_TOL
+                        too_low |= corner.y >  HEIGHT - ScanKillian2.Y_CENTERED_TOL
+                        too_left |= corner.x < ScanKillian2.X_CENTERED_TOL
+                        too_right |= corner.x > WIDTH - ScanKillian2.X_CENTERED_TOL
 
                     # Invalid measurement, cropped gate
                     centered = not too_high and not too_low and not too_left and not too_right
@@ -166,14 +167,14 @@ class ScanKillian2(Planner):
                             self.waypoints[-1].position += ScanKillian2.GATE_PASS_DIST * UP
                         elif too_low:
                             self.waypoints[-1].position -= ScanKillian2.GATE_PASS_DIST * UP
-                        else:
+                        elif too_high and too_low:
                             self.waypoints[-1].position -= ScanKillian2.GATE_PASS_DIST * forward
                         
                         if too_left:
                             self.waypoints[-1].position += ScanKillian2.GATE_PASS_DIST * left
                         elif too_right:
                             self.waypoints[-1].position -= ScanKillian2.GATE_PASS_DIST * left
-                        else:
+                        elif too_left and too_right:
                             self.waypoints[-1].position -= ScanKillian2.GATE_PASS_DIST * forward
 
                         # Move in a better position
