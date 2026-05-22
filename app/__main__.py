@@ -8,7 +8,8 @@ from app.io.keyboard import Keyboard
 from app.planner.racer import RacerPlanner
 from app.telemetry import Telemetry
 from app.planner import Planner
-from app.planner.scan_killian import ScanKillian
+from app.planner.scan_killian1 import ScanKillian1
+from app.planner.scan_killian2 import ScanKillian2
 from app.planner.scan_oskar import ScanOskar
 from app.planner.scan_vincent import ScanVincent
 from app.planner.race import Race
@@ -30,7 +31,8 @@ class App:
         self.playback       = Playback("2026-05-21-03-12-58")
         self.flight_status  = FlightStatus.LANDED
         self.planners: dict[str, Planner] = {
-            "SCAN KIL": ScanKillian(),
+            "SCAN KIL1": ScanKillian1(),
+            "SCAN KIL2": ScanKillian2(),
             "SCAN OSK": ScanOskar(),
             "SCAN VIN": ScanVincent(),
             "RACE SLOW": Race(speed=0.25),
@@ -141,6 +143,12 @@ class App:
                 self.keyboard.update(dt)
                 if self.keyboard.last_space:
                     flags |= Telemetry.Flags.START
+
+            # Show gate detection result when in manual control
+            if self.gui.control_mode == ControlMode.MANUAL:
+                scan_planner: ScanKillian1 = self.planners["SCAN KIL1"]
+                gates = scan_planner.find_gates(frame, measurement, flags)
+                scan_planner.gates_detected_event(gates)
 
             # Skip command to run playback (to give test images for planner to try inferences)
             if self.gui.layout.playback_btn.latched:

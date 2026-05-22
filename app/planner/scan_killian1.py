@@ -18,7 +18,7 @@ with no_network():
 MODEL_PATH = os.path.join("controller_detection", "detection_model", "models", "yolov8n_v3bw_r1", "weights", "best.pt")
 ENABLE_TAS_REF_ANGLE = True
 
-class ScanKillian(Planner):
+class ScanKillian1(Planner):
 
     SCAN_YAWS = [-45, 0, 75, 135, 180, 180]
     INITIAL_SETPOINT = Setpoint(Planner.HOME_POSITION, np.deg2rad(SCAN_YAWS[0]))
@@ -35,8 +35,8 @@ class ScanKillian(Planner):
         super().__init__()
         self.model = YOLO(MODEL_PATH)
         self.model.eval()
-        self.waypoints.append(ScanKillian.INITIAL_SETPOINT)
-        self.state = ScanKillian.State.REACH_WAYPOINT
+        self.waypoints.append(ScanKillian1.INITIAL_SETPOINT)
+        self.state = ScanKillian1.State.REACH_WAYPOINT
         self.stabilization_timeout = 0.0
         self.gates = []
         self.sim_gates = []
@@ -83,8 +83,8 @@ class ScanKillian(Planner):
     def reload(self) -> None:
         self.waypoints.clear()
         self.gates.clear()
-        self.waypoints.append(ScanKillian.INITIAL_SETPOINT)
-        self.state = ScanKillian.State.REACH_WAYPOINT
+        self.waypoints.append(ScanKillian1.INITIAL_SETPOINT)
+        self.state = ScanKillian1.State.REACH_WAYPOINT
         self.stabilization_timeout = 0.0
         self.load_sim()
 
@@ -103,34 +103,34 @@ class ScanKillian(Planner):
 
         match self.state:
 
-            case ScanKillian.State.REACH_WAYPOINT:
+            case ScanKillian1.State.REACH_WAYPOINT:
 
                 # Waypoint reached
                 if reached:
 
                     # Look for next gate until 5 were found
                     if len(self.gates) < 5:
-                        self.state = ScanKillian.State.STABILIZE
+                        self.state = ScanKillian1.State.STABILIZE
                         return self.update(measurement, frame, flags, dt)
                     
                     # All gates have been crossed, return home
                     else:
                         self.waypoints.append(Planner.HOME_SETPOINT)
-                        self.state = ScanKillian.State.END
+                        self.state = ScanKillian1.State.END
                         return self.update(measurement, frame, flags, dt)
 
                 # Waypoint not reached yet, keep going
                 else:
                     return setpoint
 
-            case ScanKillian.State.STABILIZE:
+            case ScanKillian1.State.STABILIZE:
                 self.stabilization_timeout += dt
-                if self.stabilization_timeout > ScanKillian.STABILIZATION_TIMEOUT:
+                if self.stabilization_timeout > ScanKillian1.STABILIZATION_TIMEOUT:
                     self.stabilization_timeout = 0
-                    self.state = ScanKillian.State.FIND_GATE
+                    self.state = ScanKillian1.State.FIND_GATE
                 return setpoint
             
-            case ScanKillian.State.FIND_GATE:
+            case ScanKillian1.State.FIND_GATE:
 
                 # Gate detected
                 if len(gates) > 0:
@@ -139,8 +139,8 @@ class ScanKillian(Planner):
                     gate = gates[0]
 
                     # Compute next waypoint
-                    target_yaw = np.deg2rad(ScanKillian.SCAN_YAWS[len(self.waypoints)])
-                    target_position = gate.position + gate.normal * ScanKillian.GATE_PASS_DIST
+                    target_yaw = np.deg2rad(ScanKillian1.SCAN_YAWS[len(self.waypoints)])
+                    target_position = gate.position + gate.normal * ScanKillian1.GATE_PASS_DIST
                     next_setpoint = Setpoint(target_position, target_yaw)
 
                     # Append it to lists
@@ -148,14 +148,14 @@ class ScanKillian(Planner):
                     self.waypoints.append(next_setpoint)
 
                     # Reach gate center
-                    self.state = ScanKillian.State.REACH_WAYPOINT
+                    self.state = ScanKillian1.State.REACH_WAYPOINT
                     return self.update(measurement, frame, flags, dt)
                     
                 # Gate not found, stay static
                 else:
                     return setpoint
                 
-            case ScanKillian.State.END:
+            case ScanKillian1.State.END:
                 return setpoint
 
     def find_gates(self, frame: MatLike, measurement: Measurement, flags: Telemetry.Flags) -> list[Gate]:
@@ -183,7 +183,7 @@ class ScanKillian(Planner):
 
                 # Transform to clip space and cull gates outside screen
                 clip = world2clip(v, world)
-                if sum(any(plane(c) < 0 for plane in CLIP_PLANES) for c in clip) >= 1:
+                if sum(any(plane(c) < 0 for plane in CLIP_PLANES) for c in clip) >= 3:
                     continue
                 
                 # Transform gates to screen space and clamp them to border if necessary

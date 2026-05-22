@@ -193,6 +193,7 @@ class Gui:
         self.update_control_mode_and_source()
 
     def plan_btn_click_handler(self) -> None:
+        self.audio.play(Audio.Track.BUTTON)
         if self.layout.plan_btn.latched:
             self.layout.plan_btn.set_text("PLAN [ON]")
             self.layout.mode_btn.disable()
