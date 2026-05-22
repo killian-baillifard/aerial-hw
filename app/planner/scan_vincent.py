@@ -14,9 +14,7 @@ from app.telemetry.camera import UP, world2clip, clip2screen, CLIP_PLANES, WIDTH
 from ultralytics import YOLO
 
 # ── BULLETPROOF MODEL PATH ───────────────────────────────────────────────────
-# Automatically finds the current script directory and navigates to the model
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-# Note: You may need to adjust the number of ".." depending on how deep this file is stored!
 MODEL_PATH = os.path.join(SCRIPT_DIR, "..", "..", "controller_detection", "detection_model", "models", "yolov8n_v3bw_r1", "weights", "best.pt")
 
 class ScanVincent(Planner):
@@ -25,56 +23,41 @@ class ScanVincent(Planner):
     SCAN_YAWS = [-45, 0, 75, 130, 180, 180]
     INITIAL_SETPOINT = Setpoint(Planner.HOME_POSITION, np.deg2rad(SCAN_YAWS[0]))
     STABILIZATION_TIMEOUT = 5.0  # s
-    GATE_PASS_DIST = 0.10        # m
-    ORBIT_START_DIST = 0.9       # m — How close to get before stopping to orbit
-
-    # Physical Room Dimensions
-    ROOM_X = 4.05
-    ROOM_Y = 2.87
-
-    # Alignment tuning (Proportional Gains)
-    ALTITUDE_KP         = 0.002  # vertical error → z correction
-    YAW_KP              = 0.015  # horizontal pixel error → yaw correction
     
-    # Speeds (Scaled by dt for consistent physical movement)
-    FORWARD_SPEED       = 0.3    # m/s — push ahead speed
-    ORBIT_BASE_SPEED    = 9.0    # orbit strafe numerator (divided by gate height)
-    ORBIT_MAX_SPEED     = 0.2    # m/s — cap on lateral correction
-    BLIND_YAW_RATE      = 0.5    # rad/s — spin speed during blind search
-    BLIND_DRIFT_SPEED   = 0.2    # m/s — drift toward centre during blind search
-
-    # # Speeds (Scaled by dt for consistent physical movement)
-    # FORWARD_SPEED       = 9.0    # m/s (Increased 10x to match your old speed)
-    # ORBIT_BASE_SPEED    = 12.0    # orbit strafe numerator
-    # ORBIT_MAX_SPEED     = 7.0    # m/s (Increased 10x for snappy lateral corrections)
-    # BLIND_YAW_RATE      = 5.0    # rad/s (Aggressive spin during search)
-    # BLIND_DRIFT_SPEED   = 2.0    # m/s (Fast drift toward centre)
+    # ── DISCRETE STEP SETTINGS (Tuned for low FPS) ──
+    # We no longer use speeds (m/s). We use absolute step distances.
+    YAW_TOLERANCE     = 25.0     # px — Error required to trigger a Yaw fix
+    Z_TOLERANCE       = 20.0     # px — Error required to trigger an Alt fix
+    ORBIT_TOLERANCE   = 15.0     # px — Asymmetry required to trigger a Strafe
     
-    # Tolerances
-    ALIGN_TOLERANCE     = 10.0   # px — h_left/h_right diff band to leave ORBIT state
-    BLIND_CENTER_RADIUS = 0.5    # m — dead-zone radius around room centre
-    BLIND_Z_TARGET      = 0.70   # m — hover altitude during blind search
-    BLIND_Z_KP          = 0.8    # blind altitude correction gain
-
+    STEP_FORWARD      = 0.4      # m — How far to jump forward per decision
+    MAX_STEP_STRAFE   = 0.3      # m — Maximum lateral jump to fix orbit
+    MAX_STEP_Z        = 0.2      # m — Maximum vertical jump
+    MAX_STEP_YAW      = 0.35     # rad (~20 deg) — Maximum spin per decision
+    
+    COMMIT_DISTANCE   = 0.9      # m — Once we are within 90cm, blindly pass through
+    BLIND_SPIN_STEP   = 0.34     # rad — Spin chunk if searching blindly
+    
     class State(Enum):
         REACH_WAYPOINT  = 0
         STABILIZE       = 1
         ALIGN           = 2
         END             = 3
 
-    class AlignState(Enum):
-        APPROACH        = "APPROACH"
-        ORBIT           = "ORBIT"
-        FINAL_APPROACH  = "FINAL_APPROACH"
-
     def __init__(self) -> None:
         super().__init__()
         self.model = YOLO(MODEL_PATH)
         self.model.eval()
         self.waypoints.append(ScanVincent.INITIAL_SETPOINT)
-        self.state       = ScanVincent.State.REACH_WAYPOINT
-        self.align_state = ScanVincent.AlignState.APPROACH
+        
+        self.state = ScanVincent.State.REACH_WAYPOINT
         self.stabilization_timeout = 0.0
+        
+        # ── DISCRETE MEMORY ──
+        # This locks in our decision between the slow camera frames
+        self.target_setpoint = None
+        self.gate_lost_timer = 0.0
+
         self.load_sim()
 
     def load_sim(self) -> None:
@@ -92,9 +75,9 @@ class ScanVincent(Planner):
         self.waypoints.clear()
         self.gates.clear()
         self.waypoints.append(ScanVincent.INITIAL_SETPOINT)
-        self.state       = ScanVincent.State.REACH_WAYPOINT
-        self.align_state = ScanVincent.AlignState.APPROACH
+        self.state = ScanVincent.State.REACH_WAYPOINT
         self.stabilization_timeout = 0.0
+        self.target_setpoint = None
         self.load_sim()
 
     @overrides
@@ -103,15 +86,17 @@ class ScanVincent(Planner):
         # Interpolate toward last waypoint
         setpoint, reached = Planner.reach(self.waypoints[-1], measurement, 0.5)
 
-        # Always run detection so the visualiser stays current
+        # Always tick the blind timer
+        self.gate_lost_timer += dt
+
+        # Only process vision if a genuinely new frame has arrived (3 FPS)
         if Telemetry.Flags.NEW_FRAME in flags:
             gates = self.find_gates(frame, measurement, flags)
             self.gates_detected_event(gates)
         else:
-            gates = []
+            gates = None # We use None to signify "no new data", not "empty"
 
         match self.state:
-
             # ── 0. REACH_WAYPOINT ─────────────────────────────────────────────
             case ScanVincent.State.REACH_WAYPOINT:
                 if reached:
@@ -129,135 +114,125 @@ class ScanVincent(Planner):
                 self.stabilization_timeout += dt
                 if self.stabilization_timeout > ScanVincent.STABILIZATION_TIMEOUT:
                     self.stabilization_timeout = 0.0
-                    self.align_state = ScanVincent.AlignState.APPROACH   # always reset on entry
+                    self.target_setpoint = None # Reset alignment memory
                     self.state = ScanVincent.State.ALIGN
                 return setpoint
 
-            # ── 2. ALIGN (closed-loop active-vision state machine) ────────────
+            # ── 2. ALIGN (Discrete Decision Tree) ─────────────────────────────
             case ScanVincent.State.ALIGN:
-                return self._align(gates, measurement, setpoint, dt)
+                return self._align(gates, measurement, flags)
 
             # ── 3. END ────────────────────────────────────────────────────────
             case ScanVincent.State.END:
                 return setpoint
 
     # ─────────────────────────────────────────────────────────────────────────
-    def _align(self, gates: list[Gate], measurement: Measurement, hold: Setpoint, dt: float) -> Setpoint:
+    def _align(self, gates: list[Gate] | None, measurement: Measurement, flags: Telemetry.Flags) -> Setpoint:
         """
-        Active-vision alignment state machine ported from closed_loop_control.
-        Returns a Setpoint on every tick; commits a confirmed gate to
-        self.gates / self.waypoints and transitions to REACH_WAYPOINT once a
-        gate has been found and approached.
+        Stop-and-Stare Decision Tree.
+        Only makes a movement decision when a NEW frame arrives. Otherwise, outputs
+        the same static setpoint so the drone stabilizes in place.
         """
-        pos = measurement.position          # glm.vec3
-        rot = measurement.rotation          # glm.vec3  (roll, pitch, yaw)
-        x, y, z   = pos.x, pos.y, pos.z
-        yaw       = rot.z
+        pos = measurement.position
+        rot = measurement.rotation
+        x, y, z = pos.x, pos.y, pos.z
+        yaw = rot.z
 
-        new_x, new_y, new_z, new_yaw = x, y, z, yaw
+        # Initialize the holding setpoint on the first run
+        if self.target_setpoint is None:
+            self.target_setpoint = Setpoint(glm.vec3(x, y, z), yaw)
 
+        # IF WE DO NOT HAVE A NEW FRAME -> Just keep stabilizing at current target
+        if Telemetry.Flags.NEW_FRAME not in flags:
+            return self.target_setpoint
+
+        # ─── WE HAVE A NEW FRAME ───
+        
         if gates:
-            # ── Gate visible: run pixel-space alignment ───────────────────────
-            gate = gates[0]   # closest detection
+            # We see a gate! Reset the blind timer.
+            self.gate_lost_timer = 0.0
+            gate = gates[0]
 
-            # Reconstruct 2-D corners from the Gate object.
             corners = gate.corners  
-            tl = np.array([corners[3][0], corners[3][1]])  # top-left
-            tr = np.array([corners[2][0], corners[2][1]])  # top-right
-            bl = np.array([corners[0][0], corners[0][1]])  # bottom-left
-            br = np.array([corners[1][0], corners[1][1]])  # bottom-right
+            tl = np.array([corners[3][0], corners[3][1]])  
+            tr = np.array([corners[2][0], corners[2][1]])  
+            bl = np.array([corners[0][0], corners[0][1]])  
+            br = np.array([corners[1][0], corners[1][1]])  
 
             h_left  = np.linalg.norm(tl - bl)
             h_right = np.linalg.norm(tr - br)
-            max_h   = max(h_left, h_right)
-
+            
             avg_u = (tl[0] + tr[0] + bl[0] + br[0]) / 4.0
             avg_v = (tl[1] + tr[1] + bl[1] + br[1]) / 4.0
-            
-            height_diff = h_left - h_right
 
-            # ── CONTINUOUS BACKGROUND CONTROLLERS ────────────────────────────
-            # YAW (Always active)
-            center_x  = WIDTH / 2.0
-            yaw_error = center_x - avg_u
-            new_yaw   = yaw + yaw_error * ScanVincent.YAW_KP
+            # Calculate raw errors
+            yaw_error = (WIDTH / 2.0) - avg_u
+            z_error   = (HEIGHT / 2.0) - avg_v
+            orbit_err = h_left - h_right
 
-            # ALTITUDE (Always active)
-            center_y       = HEIGHT / 2.0
-            vertical_error = center_y - avg_v
-            new_z          = z + vertical_error * ScanVincent.ALTITUDE_KP
+            # Base our next decision on our CURRENT physical position so errors don't compound
+            tx, ty, tz = x, y, z
+            tyaw = yaw
 
-            # ── 3-PHASE APPROACH STATE MACHINE ───────────────────────────────
-            
-            # PHASE 1: Fly close to the gate
-            if self.align_state == ScanVincent.AlignState.APPROACH:
-                new_x = x + (ScanVincent.FORWARD_SPEED * dt) * np.cos(yaw)
-                new_y = y + (ScanVincent.FORWARD_SPEED * dt) * np.sin(yaw)
-                
-                # Transition: If we are close enough, stop and orbit
-                if gate.distance <= ScanVincent.ORBIT_START_DIST:
-                    self.align_state = ScanVincent.AlignState.ORBIT
+            # ── THE DECISION TREE (Prioritize one discrete fix at a time) ──
 
-            # PHASE 2: Stop moving forward and align left/right
-            elif self.align_state == ScanVincent.AlignState.ORBIT:
-                if abs(height_diff) > ScanVincent.ALIGN_TOLERANCE:
-                    # Scale strafe speed by dt to get meters-per-frame
-                    strafe_velocity = np.clip(
-                        height_diff * ScanVincent.ORBIT_BASE_SPEED / (max_h + 1e-5),
-                        -ScanVincent.ORBIT_MAX_SPEED,
-                        ScanVincent.ORBIT_MAX_SPEED
-                    )
-                    strafe_step = strafe_velocity * dt
-                    new_x = x - strafe_step * np.sin(yaw)
-                    new_y = y + strafe_step * np.cos(yaw)
-                else:
-                    # Transition: We are perfectly centered, proceed to go through
-                    self.align_state = ScanVincent.AlignState.FINAL_APPROACH
+            # 1. YAW is the most important. If we aren't looking at it, fix that first.
+            if abs(yaw_error) > ScanVincent.YAW_TOLERANCE:
+                step = np.clip(yaw_error * 0.005, -ScanVincent.MAX_STEP_YAW, ScanVincent.MAX_STEP_YAW)
+                tyaw = yaw + step
+                print(f"[Decision] Fix Yaw: {np.degrees(step):.1f} deg")
 
-            # PHASE 3: Push through the gate
-            elif self.align_state == ScanVincent.AlignState.FINAL_APPROACH:
-                new_x = x + (ScanVincent.FORWARD_SPEED * dt) * np.cos(yaw)
-                new_y = y + (ScanVincent.FORWARD_SPEED * dt) * np.sin(yaw)
-                
-                # # Safety fallback: If we drift horribly off-center at the last second, fix it
-                # if abs(height_diff) > ScanVincent.ALIGN_TOLERANCE * 2:
-                #     self.align_state = ScanVincent.AlignState.ORBIT
+            # 2. ALTITUDE is next. If we are too high/low, fix that.
+            elif abs(z_error) > ScanVincent.Z_TOLERANCE:
+                step = np.clip(z_error * 0.003, -ScanVincent.MAX_STEP_Z, ScanVincent.MAX_STEP_Z)
+                tz = z + step
+                print(f"[Decision] Fix Alt: {step:.2f} m")
 
-            # ── Gate confirmation: once we are close enough, commit it ────────
-            if gate.distance <= ScanVincent.GATE_PASS_DIST * 2:
+            # 3. ORBIT (Lateral alignment). If left/right legs are asymmetrical, strafe.
+            elif abs(orbit_err) > ScanVincent.ORBIT_TOLERANCE:
+                step = np.clip(orbit_err * 0.008, -ScanVincent.MAX_STEP_STRAFE, ScanVincent.MAX_STEP_STRAFE)
+                # Positive orbit_err means left leg is taller -> we are too far right -> strafe left
+                tx = x - step * np.sin(yaw)
+                ty = y + step * np.cos(yaw)
+                print(f"[Decision] Fix Orbit: Strafe {step:.2f} m")
+
+            # 4. If all alignments are within tolerance, take a clean STEP FORWARD.
+            else:
+                tx = x + ScanVincent.STEP_FORWARD * np.cos(yaw)
+                ty = y + ScanVincent.STEP_FORWARD * np.sin(yaw)
+                print(f"[Decision] STEP FORWARD {ScanVincent.STEP_FORWARD}m")
+
+            # Lock in the decision
+            self.target_setpoint = Setpoint(glm.vec3(tx, ty, tz), tyaw)
+
+            # ── COMMIT CONDITION ──
+            # Because we step in 40cm chunks, checking for <= 10cm is dangerous (we might step over it).
+            # Instead, once we are within 90cm and centered, commit to the pass-through.
+            if gate.distance <= ScanVincent.COMMIT_DISTANCE:
+                print(">>> COMMITTING TO PASS GATE <<<")
                 target_yaw      = np.deg2rad(ScanVincent.SCAN_YAWS[len(self.waypoints)])
-                target_position = gate.position + gate.normal * ScanVincent.GATE_PASS_DIST
+                target_position = gate.position + gate.normal * 0.4 # Push 40cm out the back of the gate
                 next_setpoint   = Setpoint(target_position, target_yaw)
 
                 self.gates.append(next_setpoint)
                 self.waypoints.append(next_setpoint)
-
+                
+                self.target_setpoint = None # Clear memory
                 self.state = ScanVincent.State.REACH_WAYPOINT
+                return next_setpoint
 
         else:
-            # ── Blind search: spin + drift toward room centre ─────────────────
-            self.align_state = ScanVincent.AlignState.APPROACH   # reset for next gate
+            # ── BLIND SEARCH ──
+            # We haven't seen a gate in a while. Take discrete spins.
+            if self.gate_lost_timer > 1.5:
+                print("[Decision] Blind Spin")
+                self.gate_lost_timer = 0.0 # reset timer so we wait before spinning again
+                
+                # Spin in place
+                tyaw = yaw + ScanVincent.BLIND_SPIN_STEP
+                self.target_setpoint = Setpoint(glm.vec3(x, y, z), tyaw)
 
-            new_yaw = yaw + (ScanVincent.BLIND_YAW_RATE * dt)
-
-            # # Drift toward room centre so the camera sweeps fresh angles
-            # center_x     = ScanVincent.ROOM_X / 2.0
-            # center_y     = ScanVincent.ROOM_Y / 2.0
-            # vector_x     = center_x - x
-            # vector_y     = center_y - y
-            # dist_to_center = np.hypot(vector_x, vector_y)
-
-            # if dist_to_center > ScanVincent.BLIND_CENTER_RADIUS:
-            #     new_x = x + (vector_x / dist_to_center) * (ScanVincent.BLIND_DRIFT_SPEED * dt)
-            #     new_y = y + (vector_y / dist_to_center) * (ScanVincent.BLIND_DRIFT_SPEED * dt)
-
-            new_x = x
-            new_y = y
-
-            if z < ScanVincent.BLIND_Z_TARGET - 0.05 or z > ScanVincent.BLIND_Z_TARGET + 0.05:
-                new_z = z + (ScanVincent.BLIND_Z_TARGET - z) * ScanVincent.BLIND_Z_KP
-
-        return Setpoint(glm.vec3(new_x, new_y, new_z), new_yaw)
+        return self.target_setpoint
 
     # ── Detection (unchanged) ─────────────────────────────────────────────────
     def find_gates(self, frame: MatLike, measurement: Measurement, flags: Telemetry.Flags) -> list[Gate]:
@@ -292,6 +267,7 @@ class ScanVincent(Planner):
 
         else:
             frame       = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
+            # Add imgsz=320 here if you want YOLO to run even faster on the live hardware
             predictions = self.model.predict(frame, conf=0.5, iou=0.7, verbose=False)
 
             if len(predictions) != 1:
