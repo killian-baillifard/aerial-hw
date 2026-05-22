@@ -14,6 +14,12 @@ class RacerPlanner(Planner):
 
     GATES_DIRECTORY = "gates"
 
+    def __init__(self, speed: float = 1.0):
+        super().__init__()
+        self.speed = speed
+        self.started = False
+        self.hover_setpoint = RacerPlanner.HOME_SETPOINT
+
     @overrides
     def reload(self) -> None:
 
@@ -31,26 +37,26 @@ class RacerPlanner(Planner):
         self.gates                  = [Setpoint(position, yaw) for position, yaw in zip(positions, yaws)]
 
         # Build trajectory starting from home position
+        self.started = False
+        self.hover_setpoint = Setpoint(glm.vec3(0.0, 0.0, self.gates[0].position.z), RacerPlanner.HOME_YAW)
         self.waypoints.clear()
-        home_to_first_gate_direction = self.gates[0].position - RacerPlanner.HOME_SETPOINT.position
+        home_to_first_gate_direction = self.gates[0].position - self.hover_setpoint.position
         home_to_first_gate_yaw = np.atan2(home_to_first_gate_direction.y, home_to_first_gate_direction.x)
-        self.waypoints.append(Setpoint(RacerPlanner.HOME_SETPOINT.position, home_to_first_gate_yaw))
+        self.waypoints.append(Setpoint(self.hover_setpoint.position, home_to_first_gate_yaw))
 
         # Flatten gates for 2 laps, then build pre/center/post triplet per gate.
-        # Pre and post z are offset by a small slope-proportional bias derived from
-        # the height trend across each gate (prev -> next), matching the approach used
-        # in my_assignment.py _build_race_gate_triplet.
+        # Pre and post z are shaped asymmetrically: pre uses the incoming slope
+        # (prev -> gate) and post uses the outgoing slope (gate -> next) independently.
         lapped_gates = self.gates * 2
-        home_pos = RacerPlanner.HOME_SETPOINT.position
+        home_pos = self.hover_setpoint.position
 
         for i, gate in enumerate(lapped_gates):
-            prev_pos = lapped_gates[i - 1].position if i > 0          else home_pos
+            prev_pos = lapped_gates[i - 1].position if i > 0                    else home_pos
             next_pos = lapped_gates[i + 1].position if i < len(lapped_gates) - 1 else home_pos
 
-            z_shift = compute_z_shift(
-                [prev_pos.x, prev_pos.y, prev_pos.z],
-                [next_pos.x, next_pos.y, next_pos.z]
-            )
+            g = [gate.position.x, gate.position.y, gate.position.z]
+            pre_shift  = compute_z_shift([prev_pos.x, prev_pos.y, prev_pos.z], g)
+            post_shift = compute_z_shift(g, [next_pos.x, next_pos.y, next_pos.z])
 
             normal = glm.vec3(
                 RacerPlanner.APPROACH_DIST * np.cos(gate.yaw),
@@ -60,22 +66,28 @@ class RacerPlanner(Planner):
             pre_pos  = gate.position - normal
             post_pos = gate.position + normal
 
-            self.waypoints.append(Setpoint(glm.vec3(pre_pos.x,  pre_pos.y,  gate.position.z - 0.5 * z_shift), gate.yaw))
+            self.waypoints.append(Setpoint(glm.vec3(pre_pos.x,  pre_pos.y,  gate.position.z - 0.5 * pre_shift),  gate.yaw))
             self.waypoints.append(Setpoint(gate.position, gate.yaw))
-            self.waypoints.append(Setpoint(glm.vec3(post_pos.x, post_pos.y, gate.position.z + 0.5 * z_shift), gate.yaw))
+            self.waypoints.append(Setpoint(glm.vec3(post_pos.x, post_pos.y, gate.position.z + 0.5 * post_shift), gate.yaw))
 
         # Return to home position at the end
-        self.waypoints.append(RacerPlanner.HOME_SETPOINT)
+        self.waypoints.append(self.hover_setpoint)
 
     @overrides
     def update(self, measurement: Measurement, frame: MatLike, flags: Telemetry.Flags, dt: float) -> Setpoint:
 
+        if Telemetry.Flags.START in flags:
+            self.started = True
+
+        if not self.started:
+            return self.hover_setpoint
+
         # Waypoint list empty, go back to home position
         if(len(self.waypoints) == 0):
-            return RacerPlanner.HOME_SETPOINT
+            return self.hover_setpoint
 
         # Until waypoint is reached, return interpolated setpoint
-        setpoint, reached = Planner.reach(self.waypoints[0], measurement)
+        setpoint, reached = Planner.reach(self.waypoints[0], measurement, self.speed)
         if not reached:
             return setpoint
 

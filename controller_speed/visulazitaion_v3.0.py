@@ -1,3 +1,4 @@
+import ast
 import os
 import sys
 import numpy as np
@@ -7,10 +8,22 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 from csv_gates import load_gates_csv, GATE_SOURCE
 
-# Shared z-shaping parameters and formula (single source of truth with app/planner/racer.py)
-# Import directly by path to avoid triggering app/planner/__init__.py (which needs pyglm)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app", "planner"))
 from racer_z_params import compute_z_shift
+
+# Read DEFAULT_RACE_TIME directly from racer_polynom.py source — no pyglm import needed
+def _read_default_race_time() -> float:
+    src_path = os.path.join(os.path.dirname(__file__), "..", "app", "planner", "racer_polynom.py")
+    tree = ast.parse(open(src_path).read())
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "DEFAULT_RACE_TIME":
+                    if isinstance(node.value, ast.Constant):
+                        return float(node.value.value)
+    return 20.0  # fallback
+
+RACE_TIME = _read_default_race_time()
 
 # =========================
 # Real arena dimensions [m]
@@ -33,7 +46,6 @@ WALL_CLEARANCE = 0.04
 
 APPROACH_DIST  = 0.20
 LAND_HOVER_Z   = 0.30
-HOME_HOVER_Z   = 0.50   # race hover altitude (z of home waypoint in trajectory)
 PLOT_MARGIN    = 0.50
 
 _LIGHTHOUSE_X = ROOM_X - 2.01 - 0.165
@@ -59,13 +71,19 @@ GATES_CSV = os.path.join(os.path.dirname(__file__), "gates_test.csv")
 _HOME_DRONE_XY = tuple(HOME_XY - DRONE_ORIGIN_XY)
 
 # =========================
+# Polynomial trajectory settings
+# =========================
+# RACE_TIME is read from app/planner/racer_polynom.py DEFAULT_RACE_TIME (see top of file)
+POLY_STEPS = 800    # number of evaluation points for the smooth curve
+
+# =========================
 # Waypoint type colours
 # =========================
 WP_COLORS = {
     "home":   "orange",
-    "pre":    "#2196F3",    # blue
-    "center": "#E91E63",    # pink/red
-    "post":   "#4CAF50",    # green
+    "pre":    "#2196F3",
+    "center": "#E91E63",
+    "post":   "#4CAF50",
     "land":   "orange",
 }
 WP_MARKERS = {
@@ -176,15 +194,13 @@ def poses_to_gates(poses: np.ndarray) -> list:
     return gates
 
 
-# =========================
-# Trajectory builder — now returns (wps array, type list)
-# Types: 'home', 'pre', 'center', 'post', 'land'
-# =========================
 def build_trajectory_room_coords(poses: np.ndarray):
     n = len(poses)
-    lapped_idx = list(range(n)) * 2     # gate indices for 2 laps
+    lapped_idx = list(range(n)) * 2
 
-    home_xyz = [HOME_XY[0], HOME_XY[1], HOME_HOVER_Z]
+    # Match racer_polynom.py: hover z = first gate z, not a hardcoded constant
+    home_hover_z = float(poses[0][2])
+    home_xyz = [HOME_XY[0], HOME_XY[1], home_hover_z]
 
     wps   = [home_xyz]
     types = ["home"]
@@ -231,15 +247,104 @@ def build_trajectory_room_coords(poses: np.ndarray):
 
 
 # =========================
+# Polynomial trajectory (minimum-jerk, same logic as racer_polynom.py)
+# =========================
+
+def _poly_matrix(t: float) -> np.ndarray:
+    """5th-order constraint matrix at local segment time t. Shape (5, 6)."""
+    return np.array([
+        [1,  t,   t**2,    t**3,    t**4,    t**5],
+        [0,  1,  2*t,   3*t**2,  4*t**3,  5*t**4],
+        [0,  0,    2,     6*t,  12*t**2, 20*t**3],
+        [0,  0,    0,       6,    24*t,  60*t**2],
+        [0,  0,    0,       0,      24,    120*t],
+    ])
+
+
+def _solve_poly_1d(positions: np.ndarray, seg_durations: np.ndarray) -> np.ndarray:
+    """Solve minimum-jerk polynomial for one dimension. Returns coeffs shape (6*(m-1),)."""
+    m = len(positions)
+    n = 6 * (m - 1)
+    A = np.zeros((n, n))
+    b = np.zeros(n)
+    A0 = _poly_matrix(0.0)
+    row = 0
+
+    for i in range(m - 1):
+        Af = _poly_matrix(seg_durations[i])
+        c  = slice(6 * i, 6 * (i + 1))
+
+        if i == 0:
+            A[row, c] = A0[0]; b[row] = positions[0]; row += 1
+            A[row, c] = A0[1]; b[row] = 0.0;          row += 1
+            A[row, c] = A0[2]; b[row] = 0.0;          row += 1
+            A[row, c] = Af[0]; b[row] = positions[1]; row += 1
+            cn = slice(6 * (i + 1), 6 * (i + 2))
+            for k in range(1, 5):
+                A[row, c] = Af[k]; A[row, cn] = -A0[k]; b[row] = 0.0; row += 1
+
+        elif i < m - 2:
+            A[row, c] = A0[0]; b[row] = positions[i];     row += 1
+            A[row, c] = Af[0]; b[row] = positions[i + 1]; row += 1
+            cn = slice(6 * (i + 1), 6 * (i + 2))
+            for k in range(1, 5):
+                A[row, c] = Af[k]; A[row, cn] = -A0[k]; b[row] = 0.0; row += 1
+
+        else:
+            A[row, c] = A0[0]; b[row] = positions[i];     row += 1
+            A[row, c] = Af[0]; b[row] = positions[i + 1]; row += 1
+            A[row, c] = Af[1]; b[row] = 0.0;              row += 1
+            A[row, c] = Af[2]; b[row] = 0.0;              row += 1
+
+    return np.linalg.solve(A, b)
+
+
+def compute_poly_trajectory(wps: np.ndarray, race_time: float, n_steps: int = POLY_STEPS) -> np.ndarray:
+    """
+    Compute a smooth minimum-jerk polynomial trajectory through the given waypoints.
+    wps:       shape (m, 3) — x, y, z positions in room coordinates
+    race_time: total duration [s]
+    Returns:   shape (n_steps, 3) dense trajectory
+    """
+    pts    = wps[:, :3].astype(float)
+    m      = len(pts)
+    n_seg  = m - 1
+
+    seg_lengths  = np.linalg.norm(np.diff(pts, axis=0), axis=1)
+    total_length = float(np.sum(seg_lengths))
+    BASE_FRAC    = 0.10
+    base_dur     = BASE_FRAC * race_time / n_seg
+    remaining    = race_time - n_seg * base_dur
+    seg_durations = (base_dur + remaining * seg_lengths / total_length
+                     if total_length > 0 else np.full(n_seg, race_time / n_seg))
+
+    wp_times    = np.concatenate(([0.0], np.cumsum(seg_durations)))
+    poly_coeffs = np.column_stack([
+        _solve_poly_1d(pts[:, 0], seg_durations),
+        _solve_poly_1d(pts[:, 1], seg_durations),
+        _solve_poly_1d(pts[:, 2], seg_durations),
+    ])   # shape (6*(m-1), 3)
+
+    ts   = np.linspace(0.0, wp_times[-1], n_steps)
+    traj = np.zeros((n_steps, 3))
+    for idx, t in enumerate(ts):
+        seg = int(np.searchsorted(wp_times, t, side='right')) - 1
+        seg = int(np.clip(seg, 0, n_seg - 1))
+        t_local    = t - wp_times[seg]
+        row        = _poly_matrix(t_local)[0]
+        traj[idx]  = poly_coeffs[6 * seg: 6 * (seg + 1), :].T @ row
+
+    return traj
+
+
+# =========================
 # Drawing helpers
 # =========================
+
 def draw_trajectory_3d(ax, wps: np.ndarray, types: list):
     s = np.array([sheet_xyz(wp) for wp in wps])
+    ax.plot(s[:, 0], s[:, 1], s[:, 2], '--', color='#FF69B4', lw=1.2, alpha=0.45, zorder=3)
 
-    # Connect all waypoints with a dashed line
-    ax.plot(s[:, 0], s[:, 1], s[:, 2], '--', color='#FF69B4', lw=1.4, alpha=0.6, zorder=3)
-
-    # Scatter each type separately for the legend
     plotted = set()
     for wp, t, sp in zip(wps, types, s):
         label = WP_LABELS.get(t) if t not in plotted else None
@@ -249,18 +354,14 @@ def draw_trajectory_3d(ax, wps: np.ndarray, types: list):
         if WP_LABELS.get(t):
             plotted.add(t)
 
-    # Vertical lines from gate center z to pre/post z to show the offset
     i = 0
     while i < len(types):
         if types[i] == "pre" and i + 1 < len(types) and types[i + 1] == "center":
             pre_wp    = wps[i]
             center_wp = wps[i + 1]
             pre_s     = sheet_xyz(pre_wp)
-            # vertical line at pre xy from center_z down/up to pre_z
             ax.plot(
-                [pre_s[0], pre_s[0]],
-                [pre_s[1], pre_s[1]],
-                [center_wp[2], pre_wp[2]],
+                [pre_s[0], pre_s[0]], [pre_s[1], pre_s[1]], [center_wp[2], pre_wp[2]],
                 color=WP_COLORS["pre"], lw=1.2, linestyle=":", alpha=0.8
             )
             i += 1
@@ -269,9 +370,7 @@ def draw_trajectory_3d(ax, wps: np.ndarray, types: list):
             center_wp = wps[i - 1]
             post_s    = sheet_xyz(post_wp)
             ax.plot(
-                [post_s[0], post_s[0]],
-                [post_s[1], post_s[1]],
-                [center_wp[2], post_wp[2]],
+                [post_s[0], post_s[0]], [post_s[1], post_s[1]], [center_wp[2], post_wp[2]],
                 color=WP_COLORS["post"], lw=1.2, linestyle=":", alpha=0.8
             )
             i += 1
@@ -281,9 +380,8 @@ def draw_trajectory_3d(ax, wps: np.ndarray, types: list):
 
 def draw_trajectory_2d(ax, wps: np.ndarray, types: list):
     s = np.array([sheet_xy(wp[:2]) for wp in wps])
-
-    ax.plot(s[:, 0], s[:, 1], '--', color='#FF69B4', lw=1.4, alpha=0.6, zorder=3,
-            label='Planned trajectory')
+    ax.plot(s[:, 0], s[:, 1], '--', color='#FF69B4', lw=1.2, alpha=0.45, zorder=3,
+            label='Waypoints (dashed)')
 
     plotted = set()
     for wp, t, sp in zip(wps, types, s):
@@ -294,7 +392,6 @@ def draw_trajectory_2d(ax, wps: np.ndarray, types: list):
         if WP_LABELS.get(t):
             plotted.add(t)
 
-        # Annotate z value on pre/post so the height shift is readable in 2D
         if t in ("pre", "center", "post"):
             dz_str = f"z={wp[2]:.2f}"
             ax.annotate(dz_str, xy=(sp[0], sp[1]), xytext=(4, 4),
@@ -302,8 +399,24 @@ def draw_trajectory_2d(ax, wps: np.ndarray, types: list):
                         color=WP_COLORS[t], alpha=0.85)
 
 
+def draw_poly_trajectory_3d(ax, poly_traj: np.ndarray):
+    """Draw the smooth polynomial curve in 3D."""
+    s = np.array([sheet_xyz(p) for p in poly_traj])
+    ax.plot(s[:, 0], s[:, 1], s[:, 2],
+            '-', color='#FF6600', lw=2.0, alpha=0.90, zorder=4,
+            label=f'Polynomial (t={RACE_TIME:.0f}s)')
+
+
+def draw_poly_trajectory_2d(ax, poly_traj: np.ndarray):
+    """Draw the smooth polynomial curve in 2D."""
+    s = np.array([sheet_xy(p[:2]) for p in poly_traj])
+    ax.plot(s[:, 0], s[:, 1],
+            '-', color='#FF6600', lw=2.0, alpha=0.90, zorder=4,
+            label=f'Polynomial (t={RACE_TIME:.0f}s)')
+
+
 # =========================
-# Gate geometry helpers (unchanged from v1.0)
+# Gate geometry helpers
 # =========================
 def gate_bar_polys(g):
     c = g.center
@@ -454,13 +567,11 @@ def print_gate_table(gates, wps, types):
     print("gate | size       | x [m] | y [m] | z [m] | yaw [deg] | pre_dz [m] | post_dz [m]")
     print("-----+------------+-------+-------+-------+-----------+------------+------------")
 
-    # Collect per-gate center/pre/post from first lap only
     wp_records = []
     for wp, t in zip(wps, types):
         if t in ("pre", "center", "post"):
             wp_records.append((wp, t))
 
-    # Group into triplets: (pre, center, post)
     triplets = []
     i = 0
     while i + 2 < len(wp_records):
@@ -470,8 +581,7 @@ def print_gate_table(gates, wps, types):
         else:
             i += 1
 
-    # First lap only = first n_gates triplets
-    n_gates = len(gates)
+    n_gates   = len(gates)
     first_lap = triplets[:n_gates]
 
     for g, (pre, center, post) in zip(gates, first_lap):
@@ -485,6 +595,10 @@ def print_gate_table(gates, wps, types):
 
 
 def plot_arena(gates, wps: np.ndarray, types: list):
+    print(f"Computing polynomial trajectory (race_time={RACE_TIME}s, {POLY_STEPS} steps)...")
+    poly_traj = compute_poly_trajectory(wps, RACE_TIME)
+    print("Done.")
+
     fig = plt.figure(figsize=(15, 7.5))
     gs  = fig.add_gridspec(1, 2, width_ratios=[1.1, 1.0])
 
@@ -512,6 +626,7 @@ def plot_arena(gates, wps: np.ndarray, types: list):
         draw_gate_3d(ax3d, g)
 
     draw_trajectory_3d(ax3d, wps, types)
+    draw_poly_trajectory_3d(ax3d, poly_traj)
 
     ax3d.set_xlim(-PLOT_MARGIN, ROOM_Y + PLOT_MARGIN)
     ax3d.set_ylim(-PLOT_MARGIN, ROOM_X + PLOT_MARGIN)
@@ -521,7 +636,7 @@ def plot_arena(gates, wps: np.ndarray, types: list):
     ax3d.set_xlabel("Y [m]")
     ax3d.set_ylabel("X [m]")
     ax3d.set_zlabel("Z [m]")
-    ax3d.set_title("3D arena — z offsets on pre (▼) / post (▲) waypoints")
+    ax3d.set_title(f"3D arena — polynomial trajectory (race_time={RACE_TIME}s)")
     ax3d.view_init(elev=24, azim=-60)
     ax3d.legend(loc="upper left", fontsize=8)
 
@@ -547,6 +662,7 @@ def plot_arena(gates, wps: np.ndarray, types: list):
         draw_gate_2d(ax2d, g)
 
     draw_trajectory_2d(ax2d, wps, types)
+    draw_poly_trajectory_2d(ax2d, poly_traj)
 
     ax2d.set_xlim(-PLOT_MARGIN, ROOM_Y + PLOT_MARGIN)
     ax2d.set_ylim(-PLOT_MARGIN, ROOM_X + PLOT_MARGIN)
@@ -554,7 +670,7 @@ def plot_arena(gates, wps: np.ndarray, types: list):
     ax2d.set_aspect("equal", adjustable="box")
     ax2d.set_xlabel("Y [m]")
     ax2d.set_ylabel("X [m]")
-    ax2d.set_title("Top view — z annotated on each waypoint")
+    ax2d.set_title(f"Top view — polynomial trajectory (race_time={RACE_TIME}s)")
 
     ax2d.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=8, framealpha=0.95)
 

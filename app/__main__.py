@@ -6,6 +6,7 @@ from app.io import Command
 from app.io.controller import Controller
 from app.io.keyboard import Keyboard
 from app.planner.racer import RacerPlanner
+from app.planner.racer_polynom import RacerPolynom
 from app.telemetry import Telemetry
 from app.planner import Planner
 from app.planner.scan_killian1 import ScanKillian1
@@ -22,7 +23,6 @@ class App:
     MIN_PERIOD = 1.0 / MAX_FRAMERATE
 
     def __init__(self) -> None:
-
         # Initialize application modules
         self.gui            = Gui()
         self.controller     = Controller()
@@ -39,7 +39,8 @@ class App:
             "RACE SLOW": Race(speed=0.25),
             "RACE MID": Race(speed=0.5),
             "RACE FAST": Race(speed=1.0),
-            "RACER": RacerPlanner()
+            "RACER": RacerPlanner(),
+            "RACER POLY": RacerPolynom(race_time=20.0)
         }
         self.selected_planner = next(iter(self.planners))
 
