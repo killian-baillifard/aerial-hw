@@ -28,6 +28,9 @@ class RacerPolynom(Planner):
         self.wp_yaws: np.ndarray | None = None      # yaw at each waypoint, shape (m,)
         self.hover_setpoint = RacerPolynom.HOME_SETPOINT
 
+        # State for smoothing the reach_velocity output direction
+        self._last_dir = None
+
     # ------------------------------------------------------------------
     # Polynomial math
     # ------------------------------------------------------------------
@@ -91,24 +94,97 @@ class RacerPolynom(Planner):
         return np.linalg.solve(A, b)
 
     def _eval(self, t: float) -> Setpoint:
-        """Evaluate position and yaw at global elapsed time t."""
+        """Evaluate position, yaw, and velocity at global elapsed time t."""
         t = float(np.clip(t, self.wp_times[0], self.wp_times[-1]))
         seg = int(np.searchsorted(self.wp_times, t, side='right')) - 1
         seg = int(np.clip(seg, 0, len(self.wp_times) - 2))
 
         t_local = t - self.wp_times[seg]
-        row = self._poly_matrix(t_local)[0]
+        coeffs    = self.poly_coeffs[6 * seg: 6 * (seg + 1)]   # (6, 3)
+        pos_row   = self._poly_matrix(t_local)[0]
+        vel_row   = self._poly_matrix(t_local)[1]
 
-        x = float(np.dot(row, self.poly_coeffs[6 * seg: 6 * (seg + 1), 0]))
-        y = float(np.dot(row, self.poly_coeffs[6 * seg: 6 * (seg + 1), 1]))
-        z = float(np.dot(row, self.poly_coeffs[6 * seg: 6 * (seg + 1), 2]))
+        pos = glm.vec3(*pos_row @ coeffs)
+        vel = glm.vec3(*vel_row @ coeffs)
 
         # Linear yaw interpolation within the segment
-        dur = self.wp_times[seg + 1] - self.wp_times[seg]
-        alpha = (t_local / dur) if dur > 0 else 1.0
-        yaw = wrap(self.wp_yaws[seg] + alpha * wrap(self.wp_yaws[seg + 1] - self.wp_yaws[seg]))
+        # dur   = self.wp_times[seg + 1] - self.wp_times[seg]
+        # alpha = (t_local / dur) if dur > 0 else 1.0
+        # yaw   = wrap(self.wp_yaws[seg] + alpha * wrap(self.wp_yaws[seg + 1] - self.wp_yaws[seg]))
+        yaw = float(np.atan2(vel.y, vel.x))
 
-        return Setpoint(glm.vec3(x, y, z), yaw)
+        return Setpoint(pos, yaw), vel
+
+    # ------------------------------------------------------------------
+    # Overrides reach function to drag the drone more to the outside of the gates
+    # ------------------------------------------------------------------
+
+    def reach_velocity(self, setpoint: Setpoint, measurement: Measurement, velocity: glm.vec3) -> tuple[Setpoint, bool]:
+        """
+        Compute the next intermediate setpoint along a polynomial trajectory.
+
+        Blends pure pursuit (toward the target point) with tangent following
+        (along the trajectory velocity direction) to reduce corner-cutting,
+        and adds a cross-track correction to push the drone back onto the path.
+
+        Returns the intermediate setpoint and whether the target has been reached.
+        """
+
+        # safe with 0.6, 0.5, 15s
+        FEEDFORWARD = 0.85   # 0 = pure pursuit, 1 = pure tangent follow
+        CROSS_GAIN  = 0.6   # cross-track error correction strength
+        SMOOTH = 0.3  # 0 = no smoothing, higher = more inertia
+
+        error    = setpoint.position - measurement.position   # vec3
+        dist_xy  = glm.length(error.xy)
+        speed    = glm.length(velocity.xy)                    # scalar, metres per step
+
+        # --- Heading ---
+        # Follow the trajectory tangent when moving, fall back to position error when slow
+        target_yaw = (
+            float(np.atan2(velocity.y, velocity.x)) if speed > 0.1
+            else float(np.atan2(error.y, error.x))
+        )
+
+        # --- Direction (2-D) ---
+        tangent  = glm.vec2(velocity.x, velocity.y) / speed if speed > 0.1 else glm.vec2(error.x, error.y) / max(dist_xy, 1e-6)
+        pursuit  = glm.vec2(error.x, error.y) / dist_xy     if dist_xy > 0.001 else tangent
+
+        # Cross-track error: signed perpendicular distance from drone to tangent line
+        # Positive = drone is left of the tangent direction
+        normal      = glm.vec2(-tangent.y, tangent.x)
+        cross_track = error.x * tangent.y - error.y * tangent.x   # scalar
+
+        blended_2d = (
+            (1.0 - FEEDFORWARD) * pursuit
+            + FEEDFORWARD       * tangent
+            + CROSS_GAIN        * cross_track * normal
+        )
+        # step_xy = speed * glm.normalize(blended_2d)   # vec2, magnitude = speed
+
+        # Smoothing
+        raw_dir = glm.normalize(blended_2d)
+        if self._last_dir is not None:
+            raw_dir = glm.normalize((1.0 - SMOOTH) * raw_dir + SMOOTH * self._last_dir)
+        self._last_dir = raw_dir
+        step_xy = speed * raw_dir
+
+        # --- Output setpoint ---
+        next_pos = glm.vec3(
+            measurement.position.x + step_xy.x,
+            measurement.position.y + step_xy.y,
+            setpoint.position.z,
+        )
+
+        if dist_xy >= Planner.POS_TOL:
+            return Setpoint(next_pos, target_yaw), False
+
+        # Close enough in XY — check full 3-D and yaw
+        reached = (
+            glm.length(error) < Planner.POS_TOL
+            and abs(wrap(measurement.rotation.z - setpoint.yaw)) < Planner.YAW_TOL
+        )
+        return setpoint, reached
 
     # ------------------------------------------------------------------
     # Planner interface
@@ -198,4 +274,6 @@ class RacerPolynom(Planner):
         if self.elapsed >= self.wp_times[-1]:
             return self.hover_setpoint
 
-        return self._eval(self.elapsed)
+        trajectory_setpoint, trajectory_velocity = self._eval(self.elapsed)
+        setpoint, _ = self.reach_velocity(trajectory_setpoint, measurement, trajectory_velocity)
+        return setpoint

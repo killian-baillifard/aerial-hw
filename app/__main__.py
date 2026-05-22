@@ -40,7 +40,7 @@ class App:
             "RACE MID": Race(speed=0.5),
             "RACE FAST": Race(speed=1.0),
             "RACER": RacerPlanner(),
-            "RACER POLY": RacerPolynom(race_time=20.0)
+            "RACER POLY": RacerPolynom(race_time=15.0)
         }
         self.selected_planner = next(iter(self.planners))
 
