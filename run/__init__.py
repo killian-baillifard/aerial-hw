@@ -1,22 +1,26 @@
+import os
 import numpy as np
-from enum import Enum
+import contextlib
 import socket
 from contextlib import contextmanager
+from enum import Flag
 
+class Flags(Flag):
+    NEITHER         = 0
+    NEW_MEASUREMENT = 1
+    NEW_FRAME       = 2
 
-class ControlMode(Enum):
-    MANUAL  = 0
-    PLANNER = 1
-
-class CommandSource(Enum):
-    KEYBOARD    = 0
-    CONTROLLER  = 1
-
-class FlightStatus(Enum):
-    LANDED  = 0
-    TKOF    = 1
-    AIRBORN = 2
-    LAND    = 3
+@contextlib.contextmanager
+def _muted_stderr():
+    saved = os.dup(2)
+    null = os.open(os.devnull, os.O_WRONLY)
+    try:
+        os.dup2(null, 2)
+        yield
+    finally:
+        os.dup2(saved, 2)
+        os.close(null)
+        os.close(saved)
 
 def wrap(x: float) -> float:
     return ((x + np.pi) % (2 * np.pi)) - np.pi
@@ -32,3 +36,5 @@ def no_network():
     finally:
         socket.getaddrinfo = _orig_getaddrinfo
         socket.socket.connect = _orig_connect
+
+

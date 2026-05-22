@@ -7,14 +7,16 @@ from typing import Optional, Dict
 from dataclasses import dataclass, field
 from cv2.typing import MatLike
 from overrides import overrides
-from app import wrap
+from app import wrap, no_network
 from app.io import Measurement
 from app.io import Setpoint
 from app.planner import Planner
 from app.telemetry import Telemetry
 from app.telemetry.gate import Gate
 from app.telemetry.camera import UP, world2clip, clip2screen, CLIP_PLANES, WIDTH, HEIGHT, view, euler_to_quaternion
-from ultralytics import YOLO
+
+with no_network():
+    from ultralytics import YOLO
 
 MODEL_PATH = os.path.join("controller_detection", "detection_model", "models", "yolov8n_v3bw_r1", "weights", "best.pt")
 
