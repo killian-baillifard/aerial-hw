@@ -9,7 +9,7 @@ from app.io import Setpoint
 from app.planner import Planner
 from app.telemetry import Telemetry
 
-ENABLE_TAS_REF_ANGLE = True
+ENABLE_TAS_REF_ANGLE = False
 
 class Race(Planner):
 
@@ -41,7 +41,7 @@ class Race(Planner):
         if not np.isnan(raw_csv_data[0]).any():
             positions: list[glm.vec3]   = [glm.vec3(col[1], col[2], col[3]) for col in raw_csv_data]
             if ENABLE_TAS_REF_ANGLE:
-                yaws: list[float]       = [wrap(col[4]) for col in raw_csv_data]
+                yaws: list[float]       = [wrap(col[4] - np.pi) for col in raw_csv_data]
             else:
                 yaws: list[float]       = [wrap(col[4]) for col in raw_csv_data]
             self.gates                  = [Setpoint(position, yaw) for position, yaw in zip(positions, yaws)]
