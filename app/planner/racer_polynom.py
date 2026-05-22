@@ -130,7 +130,7 @@ class RacerPolynom(Planner):
         Returns the intermediate setpoint and whether the target has been reached.
         """
 
-        # safe with 0.6, 0.5, 15s
+        # safe with 0.6, 0.5, 0.3, 15s or 0.85, 0.6, 0.3, 15s
         FEEDFORWARD = 0.85   # 0 = pure pursuit, 1 = pure tangent follow
         CROSS_GAIN  = 0.6   # cross-track error correction strength
         SMOOTH = 0.3  # 0 = no smoothing, higher = more inertia
@@ -152,7 +152,7 @@ class RacerPolynom(Planner):
 
         # Cross-track error: signed perpendicular distance from drone to tangent line
         # Positive = drone is left of the tangent direction
-        normal      = glm.vec2(-tangent.y, tangent.x)
+        normal = glm.vec2(tangent.y, -tangent.x)
         cross_track = error.x * tangent.y - error.y * tangent.x   # scalar
 
         blended_2d = (
@@ -173,7 +173,7 @@ class RacerPolynom(Planner):
         next_pos = glm.vec3(
             measurement.position.x + step_xy.x,
             measurement.position.y + step_xy.y,
-            setpoint.position.z,
+            setpoint.position.z + velocity.z * FEEDFORWARD,
         )
 
         if dist_xy >= Planner.POS_TOL:
