@@ -131,9 +131,14 @@ class RacerPolynom(Planner):
         """
 
         # safe with 0.6, 0.5, 0.3, 15s or 0.85, 0.6, 0.3, 15s
-        FEEDFORWARD = 0.85   # 0 = pure pursuit, 1 = pure tangent follow
-        CROSS_GAIN  = 0.6   # cross-track error correction strength
-        SMOOTH = 0.3  # 0 = no smoothing, higher = more inertia
+        FEEDFORWARD = 0.4   # 0 = pure pursuit, 1 = pure tangent follow
+        CROSS_GAIN  = 0.8   # cross-track error correction strength
+        SMOOTH = 0.0  # 0 = no smoothing, higher = more inertia
+
+        # 20s:
+        # 15s: 
+        # 12s:
+        # 10s:
 
         error    = setpoint.position - measurement.position   # vec3
         dist_xy  = glm.length(error.xy)
@@ -173,7 +178,7 @@ class RacerPolynom(Planner):
         next_pos = glm.vec3(
             measurement.position.x + step_xy.x,
             measurement.position.y + step_xy.y,
-            setpoint.position.z + velocity.z * FEEDFORWARD,
+            setpoint.position.z + velocity.z * 0,
         )
 
         if dist_xy >= Planner.POS_TOL:

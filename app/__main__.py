@@ -12,7 +12,7 @@ from app.planner import Planner
 from app.planner.scan_killian1 import ScanKillian1
 from app.planner.scan_killian2 import ScanKillian2
 from app.planner.scan_oskar import ScanOskar
-from app.planner.scan_vincent import ScanVincent
+#from app.planner.scan_vincent import ScanVincent
 from app.planner.race import Race
 from app.telemetry.recorder import Recorder
 from app.telemetry.playback import Playback
@@ -35,12 +35,12 @@ class App:
             "SCAN KIL1": ScanKillian1(),
             "SCAN KIL2": ScanKillian2(),
             "SCAN OSK": ScanOskar(),
-            "SCAN VIN": ScanVincent(),
+            #"SCAN VIN": ScanVincent(),
             "RACE SLOW": Race(speed=0.25),
             "RACE MID": Race(speed=0.5),
             "RACE FAST": Race(speed=1.0),
             "RACER": RacerPlanner(),
-            "RACER POLY": RacerPolynom(race_time=15.0)
+            "RACER POLY": RacerPolynom(race_time=12.0)
         }
         self.selected_planner = next(iter(self.planners))
 
