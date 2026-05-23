@@ -896,7 +896,7 @@ if __name__ == "__main__":
     print_gate_table(gates, wps, types)
     plot_arena(gates, wps, types)
 
-    planner = RacerPolynom(race_time=15.0)
+    planner = RacerPolynom(race_time=12.0)
     sim_pos, plan_pos = run_simulation(planner, poses)
     # show simulation overlay on the same arena figure
     plot_arena(gates, wps, types, sim_pos=sim_pos, plan_pos=plan_pos)
