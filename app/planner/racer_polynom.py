@@ -132,10 +132,10 @@ class RacerPolynom(Planner):
 
         # safe with 0.6, 0.5, 0.3, 15s or 0.85, 0.6, 0.3, 15s
         FEEDFORWARD = 0.4   # 0 = pure pursuit, 1 = pure tangent follow
-        CROSS_GAIN  = 0.8   # cross-track error correction strength
+        CROSS_GAIN  = 0.5   # cross-track error correction strength
         SMOOTH = 0.0  # 0 = no smoothing, higher = more inertia
 
-        # 20s:
+        # 20s: 
         # 15s: 
         # 12s:
         # 10s:
@@ -280,5 +280,5 @@ class RacerPolynom(Planner):
             return self.hover_setpoint
 
         trajectory_setpoint, trajectory_velocity = self._eval(self.elapsed)
-        setpoint, _ = self.reach_velocity(trajectory_setpoint, measurement, trajectory_velocity)
-        return setpoint
+        #setpoint, _ = self.reach_velocity(trajectory_setpoint, measurement, trajectory_velocity)
+        return trajectory_setpoint
