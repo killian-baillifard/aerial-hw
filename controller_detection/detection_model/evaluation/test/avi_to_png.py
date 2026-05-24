@@ -7,7 +7,7 @@ import sys
 
 
 # Name of the video file (expected to be next to this script)
-VIDEO_NAME = "2026-05-21-03-12-58.avi"
+VIDEO_NAME = "2026-05-24-01-09-57.avi"
 
 script_dir = Path(__file__).resolve().parent
 video_path = script_dir / VIDEO_NAME
