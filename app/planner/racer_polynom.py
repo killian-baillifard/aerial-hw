@@ -135,9 +135,9 @@ class RacerPolynom(Planner):
         CROSS_GAIN  = 0.5   # cross-track error correction strength
         SMOOTH = 0.0  # 0 = no smoothing, higher = more inertia
 
-        # 20s: 
-        # 15s: 
-        # 12s:
+        # 20s: 0.85, 0.6, 0.3
+        # 15s: 0.6, 0.5, 0.2
+        # 12s: 0.4, 0.6, 0.0
         # 10s:
 
         error    = setpoint.position - measurement.position   # vec3
