@@ -1,7 +1,24 @@
 [
   {
+    "Model":"YOLOv8n v1rgb1",
+    "Eval time (s)":3.7,
+    "Avg inference (s)":0.0176,
+    "FPS":56.77,
+    "Box Precision":0.7567,
+    "Box Recall":0.5723,
+    "Box mAP@50":0.5107,
+    "Box mAP@50-95":0.3788,
+    "Pose Precision":0.8768,
+    "Pose Recall":0.6656,
+    "Pose mAP@50":0.6481,
+    "Pose mAP@50-95":0.5433,
+    "Fitness":0.9222
+  },
+  {
     "Model":"YOLOv8n v2rgb1",
-    "Eval time (s)":3.5,
+    "Eval time (s)":3.7,
+    "Avg inference (s)":0.0139,
+    "FPS":72.04,
     "Box Precision":0.9476,
     "Box Recall":0.582,
     "Box mAP@50":0.5831,
@@ -14,7 +31,9 @@
   },
   {
     "Model":"YOLOv8n v2rgb2",
-    "Eval time (s)":3.6,
+    "Eval time (s)":3.9,
+    "Avg inference (s)":0.015,
+    "FPS":66.55,
     "Box Precision":0.8798,
     "Box Recall":0.6592,
     "Box mAP@50":0.646,
@@ -26,8 +45,25 @@
     "Fitness":1.1978
   },
   {
-    "Model":"YOLOv8n v2bwr1",
+    "Model":"YOLOv8s v2rgb1",
+    "Eval time (s)":4.1,
+    "Avg inference (s)":0.0202,
+    "FPS":49.47,
+    "Box Precision":0.9512,
+    "Box Recall":0.6013,
+    "Box mAP@50":0.6009,
+    "Box mAP@50-95":0.4756,
+    "Pose Precision":0.9602,
+    "Pose Recall":0.6206,
+    "Pose mAP@50":0.6229,
+    "Pose mAP@50-95":0.596,
+    "Fitness":1.0716
+  },
+  {
+    "Model":"YOLOv8n v2bw1",
     "Eval time (s)":3.4,
+    "Avg inference (s)":0.0143,
+    "FPS":70.01,
     "Box Precision":0.919,
     "Box Recall":0.6206,
     "Box mAP@50":0.6222,
@@ -39,8 +75,10 @@
     "Fitness":1.0805
   },
   {
-    "Model":"YOLOv8n v3bwr1",
-    "Eval time (s)":3.5,
+    "Model":"YOLOv8n v3bw1",
+    "Eval time (s)":3.9,
+    "Avg inference (s)":0.0143,
+    "FPS":70.03,
     "Box Precision":0.9539,
     "Box Recall":0.6656,
     "Box mAP@50":0.6599,
@@ -52,8 +90,10 @@
     "Fitness":1.166
   },
   {
-    "Model":"YOLOv8n v4bwr2",
+    "Model":"YOLOv8n v4bw2",
     "Eval time (s)":3.4,
+    "Avg inference (s)":0.015,
+    "FPS":66.68,
     "Box Precision":0.9434,
     "Box Recall":0.6431,
     "Box mAP@50":0.6415,
@@ -63,5 +103,35 @@
     "Pose mAP@50":0.6744,
     "Pose mAP@50-95":0.6573,
     "Fitness":1.1701
+  },
+  {
+    "Model":"YOLOv8n v5mixed1",
+    "Eval time (s)":3.6,
+    "Avg inference (s)":0.0142,
+    "FPS":70.37,
+    "Box Precision":0.9958,
+    "Box Recall":0.7621,
+    "Box mAP@50":0.7649,
+    "Box mAP@50-95":0.6847,
+    "Pose Precision":1.0,
+    "Pose Recall":0.7653,
+    "Pose mAP@50":0.765,
+    "Pose mAP@50-95":0.765,
+    "Fitness":1.4497
+  },
+  {
+    "Model":"YOLOv8n v5bwtransfer",
+    "Eval time (s)":3.7,
+    "Avg inference (s)":0.0181,
+    "FPS":55.31,
+    "Box Precision":0.9661,
+    "Box Recall":0.7331,
+    "Box mAP@50":0.7338,
+    "Box mAP@50-95":0.6287,
+    "Pose Precision":0.9873,
+    "Pose Recall":0.7492,
+    "Pose mAP@50":0.7447,
+    "Pose mAP@50-95":0.7434,
+    "Fitness":1.372
   }
 ]

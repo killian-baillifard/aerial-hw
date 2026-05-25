@@ -66,7 +66,7 @@ def main():
     # Select indices
     # indices = [7, 11, 15, 17, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29]
     # indices = [11, 15, 22] # 11
-    indices = range(7, 40)
+    indices = range(7, 260)
     # indices = range(29, 35)
 
     # Read the video file

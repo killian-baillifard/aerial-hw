@@ -9,15 +9,18 @@ import sys
 # ──────────────────────────────────────────────
 
 MODELS = {
+    "YOLOv8n v1rgb1": "../models/yolov8n_v1rgb_r1/weights/best.pt",
     "YOLOv8n v2rgb2": "../models/yolov8n_v2rgb_r2/weights/best.pt",
-    "YOLOv8n v3bwr1": "../models/yolov8n_v3bw_r1/weights/best.pt",
-    "YOLOv8n v4bwr2": "../models/yolov8n_v4bw_r2/weights/best.pt",
+    "YOLOv8s v2rgb1": "../models/yolov8s_v2rgb_r1/weights/best.pt",
+    "YOLOv8n v3bw1": "../models/yolov8n_v3bw_r1/weights/best.pt",
+    "YOLOv8n v4bw2": "../models/yolov8n_v4bw_r2/weights/best.pt",
     "YOLOv8n v5mixed1": "../models/yolov8n_v5mixed_r1/weights/best.pt",
-    # "YOLOv8n v5bwtransfer": "../models/yolov8n_v5bw_ontopv2rgb2_r1/weights/best.pt",
+    "YOLOv8n v5bwtransfer": "../models/yolov8n_v5bw_ontopv2rgb2_r1/weights/best.pt",
     # Add / remove entries freely – dict key becomes the column header
 }
 
-TEST_FOLDER = "test/2026-05-23-23-26-58"
+# TEST_FOLDER = "test/2026-05-23-23-26-58"
+TEST_FOLDER = "../dataset/annotated_gates_v5d_test/test/images"
 BATCH_SIZE  = 4
 
 # Inference settings

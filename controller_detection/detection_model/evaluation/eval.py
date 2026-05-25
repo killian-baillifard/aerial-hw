@@ -23,11 +23,15 @@ from ultralytics.utils import SETTINGS
 # ---------------------------------------------------------------------------
 
 MODELS: dict[str, str] = {
+    "YOLOv8n v1rgb1": "../models/yolov8n_v1rgb_r1/weights/best.pt",
     "YOLOv8n v2rgb1": "../models/yolov8n_v2rgb_r1/weights/best.pt",
     "YOLOv8n v2rgb2": "../models/yolov8n_v2rgb_r2/weights/best.pt",
-    "YOLOv8n v2bwr1": "../models/yolov8n_v2bw_r1/weights/best.pt",
-    "YOLOv8n v3bwr1": "../models/yolov8n_v3bw_r1/weights/best.pt",
-    "YOLOv8n v4bwr2": "../models/yolov8n_v4bw_r2/weights/best.pt",
+    "YOLOv8s v2rgb1": "../models/yolov8s_v2rgb_r1/weights/best.pt",
+    "YOLOv8n v2bw1": "../models/yolov8n_v2bw_r1/weights/best.pt",
+    "YOLOv8n v3bw1": "../models/yolov8n_v3bw_r1/weights/best.pt",
+    "YOLOv8n v4bw2": "../models/yolov8n_v4bw_r2/weights/best.pt",
+    "YOLOv8n v5mixed1": "../models/yolov8n_v5mixed_r1/weights/best.pt",
+    "YOLOv8n v5bwtransfer": "../models/yolov8n_v5bw_ontopv2rgb2_r1/weights/best.pt",
     # Add / remove entries freely – dict key becomes the column header
 }
 
@@ -167,6 +171,33 @@ def evaluate_model(name: str, weights: str, patched_yaml: str) -> dict:
     try:
         model = YOLO(str(weights_path))
 
+        # --- Inference-only benchmark (avg per-image time & FPS) ---
+        try:
+            with open(patched_yaml) as f:
+                cfg = yaml.safe_load(f)
+            test_path = Path(cfg.get("test", "")).resolve()
+            # collect common image extensions
+            exts = ("*.jpg", "*.jpeg", "*.png", "*.bmp")
+            img_paths = []
+            if test_path.exists():
+                for e in exts:
+                    img_paths.extend(sorted(test_path.rglob(e)))
+            if img_paths:
+                # warmup single inference to avoid first-run JIT cost
+                model.predict(source=str(img_paths[0]), imgsz=IMGSZ, device=DEVICE, conf=CONF, iou=IOU, verbose=False)
+                # timed runs (limit count for speed)
+                n_runs = min(50, len(img_paths))
+                t0 = time.perf_counter()
+                for p in img_paths[:n_runs]:
+                    model.predict(source=str(p), imgsz=IMGSZ, device=DEVICE, conf=CONF, iou=IOU, verbose=False)
+                t_inf = time.perf_counter() - t0
+                avg_inf = t_inf / n_runs
+            else:
+                avg_inf = None
+        except Exception:
+            avg_inf = None
+        # ------------------------------------------------------------
+
         t0 = time.perf_counter()
         results = model.val(
             data=patched_yaml,
@@ -185,6 +216,11 @@ def evaluate_model(name: str, weights: str, patched_yaml: str) -> dict:
     raw: dict = results.results_dict
 
     row = {"Model": name, "Eval time (s)": round(elapsed, 1)}
+    # add inference stats if available
+    if avg_inf is not None:
+        row["Avg inference (s)"] = round(avg_inf, 4)
+        row["FPS"] = round(1.0 / avg_inf, 2)
+
     for key in METRIC_KEYS:
         label = METRIC_LABELS.get(key, key)
         row[label] = round(raw[key], 4) if key in raw else "—"
