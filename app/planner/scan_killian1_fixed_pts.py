@@ -159,7 +159,7 @@ class ScanKillian1(Planner):
                     # Cap next_setpoint to bounding box defined by the four border points
                     # Borders (x,y,z) read from file / provided in source:
                     bb_points = [
-                        glm.vec3(-0.52, -1.02, 1.26),
+                        glm.vec3(-0.53, -1.03, 1.26),
                         glm.vec3(2.87, -1.29, 1.31),
                         glm.vec3(2.90,  1.16, 1.32),
                         glm.vec3(-0.78,  1.19, 1.23),
@@ -174,7 +174,7 @@ class ScanKillian1(Planner):
                     clamped_pos = glm.vec3(
                         float(np.clip(next_setpoint.position.x, bb_min.x, bb_max.x)),
                         float(np.clip(next_setpoint.position.y, bb_min.y, bb_max.y)),
-                        float(np.clip(next_setpoint.position.z, bb_min.z, bb_max.z)),
+                        next_setpoint.position.z
                     )
                     next_setpoint = Setpoint(clamped_pos, target_yaw)
 

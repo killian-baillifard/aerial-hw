@@ -29,7 +29,7 @@ class App:
         self.keyboard       = Keyboard()
         self.telemetry      = Telemetry(self.gui.layout.scene.overlay)
         self.recorder       = Recorder()
-        self.playback       = Playback("2026-05-21-03-12-58")
+        self.playback       = Playback("2026-05-23-23-26-58")
         self.flight_status  = FlightStatus.LANDED
         self.planners: dict[str, Planner] = {
             "SCAN KIL1": ScanKillian1(),
@@ -40,7 +40,7 @@ class App:
             "RACE MID": Race(speed=0.5),
             "RACE FAST": Race(speed=1.0),
             "RACER": RacerPlanner(),
-            "RACER POLY": RacerPolynom(race_time=11.0)
+            "RACER POLY": RacerPolynom(race_time=15.0)
             # Try without Oscar tuning : 20, 15, 12, 11
         }
         self.selected_planner = next(iter(self.planners))
