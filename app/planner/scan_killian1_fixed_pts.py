@@ -153,8 +153,30 @@ class ScanKillian1(Planner):
 
                     # Compute next waypoint
                     target_yaw = np.deg2rad(ScanKillian1.SCAN_YAWS[len(self.waypoints)])
-                    target_position = gate.position + gate.normal * ScanKillian1.GATE_PASS_DIST
+                    target_position = gate.position + gate.normal * (ScanKillian1.GATE_PASS_DIST + 0.05)
                     next_setpoint = Setpoint(target_position, target_yaw)
+
+                    # Cap next_setpoint to bounding box defined by the four border points
+                    # Borders (x,y,z) read from file / provided in source:
+                    bb_points = [
+                        glm.vec3(-0.52, -1.02, 1.26),
+                        glm.vec3(2.87, -1.29, 1.31),
+                        glm.vec3(2.90,  1.16, 1.32),
+                        glm.vec3(-0.78,  1.19, 1.23),
+                    ]
+                    bb_min = glm.vec3(min(p.x for p in bb_points),
+                                      min(p.y for p in bb_points),
+                                      min(p.z for p in bb_points))
+                    bb_max = glm.vec3(max(p.x for p in bb_points),
+                                      max(p.y for p in bb_points),
+                                      max(p.z for p in bb_points))
+
+                    clamped_pos = glm.vec3(
+                        float(np.clip(next_setpoint.position.x, bb_min.x, bb_max.x)),
+                        float(np.clip(next_setpoint.position.y, bb_min.y, bb_max.y)),
+                        float(np.clip(next_setpoint.position.z, bb_min.z, bb_max.z)),
+                    )
+                    next_setpoint = Setpoint(clamped_pos, target_yaw)
 
                     # Append it to lists
                     self.gates.append(next_setpoint)
