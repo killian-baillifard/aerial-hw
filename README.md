@@ -1,5 +1,8 @@
 # Aerial robotics hardware project
 
+## Get full code access on:
+<https://github.com/killian-baillifard/aerial-hw>
+
 ## Getting started
 
 Download this repository via HTTP
