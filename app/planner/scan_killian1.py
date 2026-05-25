@@ -140,6 +140,13 @@ class ScanKillian1(Planner):
                     # Keep closest gate
                     gate = gates[0]
 
+                    # Run gate check
+                    # is_valid, new_setpoint = self.check_gate(gate)
+                    # if not is_valid:
+                    #     self.waypoints.append(new_setpoint)
+                    #     self.state = ScanKillian1.State.STABILIZE
+                    #     return self.update(measurement, frame, flags, dt)
+
                     # Compute next waypoint
                     target_yaw = np.deg2rad(ScanKillian1.SCAN_YAWS[len(self.waypoints)])
                     target_position = gate.position + gate.normal * ScanKillian1.GATE_PASS_DIST
@@ -222,3 +229,44 @@ class ScanKillian1(Planner):
         gates = [Gate(corners, measurement) for corners in gates_points]
         gates.sort(key = lambda gate: gate.distance)        
         return gates
+
+    def check_gate(self, gate: Gate) -> tuple[bool, Setpoint]:
+
+        # Gate is squeezed on camera edges, not valid
+        # Convert corners to plain lists (glm.vec2 supports .x/.y)
+        xs = [float(c.x) for c in gate.corners]
+        ys = [float(c.y) for c in gate.corners]
+        # margins expressed as fraction of image size
+        edge_frac = 0.05
+        corner_frac = 0.12
+        min_frac = 0.04
+        edge_margin = edge_frac * max(WIDTH, HEIGHT)
+        corner_margin = corner_frac * max(WIDTH, HEIGHT)
+
+        # bounding box of corners in screen pixels
+        bb_w = max(xs) - min(xs)
+        bb_h = max(ys) - min(ys)
+
+        # Check narrowness (very small bbox)
+        if bb_w < min_frac * WIDTH or bb_h < min_frac * HEIGHT:
+            # too narrow -> invalid
+            new_pos = gate.position - gate.normal * (ScanKillian1.GATE_PASS_DIST + 0.5)
+            new_yaw = self.waypoints[-1].yaw if len(self.waypoints) else 0.0
+            return False, Setpoint(new_pos, new_yaw)
+
+        # Check squeezed to one image edge
+        if all(x < edge_margin for x in xs) or all(x > WIDTH - edge_margin for x in xs) \
+           or all(y < edge_margin for y in ys) or all(y > HEIGHT - edge_margin for y in ys):
+            new_pos = gate.position - gate.normal * (ScanKillian1.GATE_PASS_DIST + 0.5)
+            new_yaw = self.waypoints[-1].yaw if len(self.waypoints) else 0.0
+            return False, Setpoint(new_pos, new_yaw)
+
+        # Check squeezed into a corner (all points close to same corner)
+        corners_px = [(0.0, 0.0), (WIDTH, 0.0), (WIDTH, HEIGHT), (0.0, HEIGHT)]
+        for cx, cy in corners_px:
+            if all(( (x - cx)**2 + (y - cy)**2 )**0.5 < corner_margin for x, y in zip(xs, ys)):
+                new_pos = gate.position - gate.normal * (ScanKillian1.GATE_PASS_DIST + 0.5)
+                new_yaw = self.waypoints[-1].yaw if len(self.waypoints) else 0.0
+                return False, Setpoint(new_pos, new_yaw)
+
+        return True, None

@@ -11,6 +11,7 @@ from app.telemetry import Telemetry
 from app.planner.racer_z_params import compute_z_shift
 
 
+ENABLE_TAS_REF_ANGLE = False
 DEFAULT_RACE_TIME = 30.0  # seconds — single source of truth, also read by visulazitaion_v3.0.py
 
 
@@ -205,7 +206,10 @@ class RacerPolynom(Planner):
 
         raw_csv_data: np.ndarray  = np.genfromtxt(file_path, delimiter=',')[1:]
         positions: list[glm.vec3] = [glm.vec3(row[1], row[2], row[3]) for row in raw_csv_data]
-        yaws: list[float]         = [wrap(row[4]) for row in raw_csv_data]
+        if ENABLE_TAS_REF_ANGLE:
+            yaws: list[float]         = [wrap(row[4] - np.pi) for row in raw_csv_data]
+        else:
+            yaws: list[float]         = [wrap(row[4]) for row in raw_csv_data]
         self.gates                = [Setpoint(position, yaw) for position, yaw in zip(positions, yaws)]
 
         # Reset state
