@@ -20,7 +20,8 @@ ENABLE_TAS_REF_ANGLE = True
 
 class ScanKillian1(Planner):
 
-    SCAN_YAWS = [-45, 0, 75, 135, 180, 180]
+    SCAN_YAWS = [-45, 0, 75, 145, 180, 180]
+    SCAN_Z = 1.3
     INITIAL_SETPOINT = Setpoint(Planner.HOME_POSITION, np.deg2rad(SCAN_YAWS[0]))
     STABILIZATION_TIMEOUT = 4.0 # s
     GATE_PASS_DIST = 0.10 # m
@@ -125,6 +126,7 @@ class ScanKillian1(Planner):
 
             case ScanKillian1.State.STABILIZE:
                 self.stabilization_timeout += dt
+                setpoint.position.z = ScanKillian1.SCAN_Z
                 if self.stabilization_timeout > ScanKillian1.STABILIZATION_TIMEOUT:
                     self.stabilization_timeout = 0
                     self.state = ScanKillian1.State.FIND_GATE

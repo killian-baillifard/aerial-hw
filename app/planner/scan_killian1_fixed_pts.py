@@ -20,10 +20,16 @@ ENABLE_TAS_REF_ANGLE = True
 
 class ScanKillian1(Planner):
 
-    SCAN_YAWS = [-45, 0, 75, 145, 180, 180]
     SCAN_Z = 1.3
-    INITIAL_SETPOINT = Setpoint(Planner.HOME_POSITION, np.deg2rad(SCAN_YAWS[0]))
-    STABILIZATION_TIMEOUT = 4.0 # s
+    SCAN_PTS = [
+        Setpoint(glm.vec3(-0.32, -0.25, SCAN_Z), np.deg2rad(-25)),
+        Setpoint(glm.vec3(1.00, -1.00, SCAN_Z), np.deg2rad(20)),
+        Setpoint(glm.vec3(2.34, -1.00, SCAN_Z), np.deg2rad(95)),
+        Setpoint(glm.vec3(2.53, 0.54, SCAN_Z), np.deg2rad(175)),
+        Setpoint(glm.vec3(1.31, 1.05, SCAN_Z), np.deg2rad(-155)),
+    ]
+    INITIAL_SETPOINT = Setpoint(Planner.HOME_POSITION, np.deg2rad(-45))
+    STABILIZATION_TIMEOUT = 2.0 # s
     GATE_PASS_DIST = 0.10 # m
 
     class State(Enum):
@@ -110,7 +116,9 @@ class ScanKillian1(Planner):
                 if reached:
 
                     # Look for next gate until 5 were found
-                    if len(self.gates) < 5:
+                    past_gates = len(self.gates)
+                    if past_gates < 5:
+                        self.waypoints.append(ScanKillian1.SCAN_PTS[past_gates])
                         self.state = ScanKillian1.State.STABILIZE
                         return self.update(measurement, frame, flags, dt)
                     
@@ -125,12 +133,15 @@ class ScanKillian1(Planner):
                     return setpoint
 
             case ScanKillian1.State.STABILIZE:
-                self.stabilization_timeout += dt
-                setpoint.position.z = ScanKillian1.SCAN_Z
-                if self.stabilization_timeout > ScanKillian1.STABILIZATION_TIMEOUT:
-                    self.stabilization_timeout = 0
-                    self.state = ScanKillian1.State.FIND_GATE
-                return setpoint
+                if reached:
+                    self.stabilization_timeout += dt
+                    setpoint.position.z = ScanKillian1.SCAN_Z
+                    if self.stabilization_timeout > ScanKillian1.STABILIZATION_TIMEOUT:
+                        self.stabilization_timeout = 0
+                        self.state = ScanKillian1.State.FIND_GATE
+                    return setpoint
+                else:
+                    return setpoint
             
             case ScanKillian1.State.FIND_GATE:
 

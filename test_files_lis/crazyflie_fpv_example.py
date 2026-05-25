@@ -159,9 +159,10 @@ class FPVWindow(QtWidgets.QWidget):
         self.image_label.setPixmap(QtGui.QPixmap.fromImage(qimg.scaled(w * 2, h * 2)))
 
     def _send_setpoint(self):
-        self.cf.commander.send_hover_setpoint(
-            self.hover['x'], self.hover['y'],
-            self.hover['yaw'], self.hover['height'])
+        # self.cf.commander.send_hover_setpoint(
+        #     self.hover['x'], self.hover['y'],
+        #     self.hover['yaw'], self.hover['height'])
+        pass
 
     def _update_velocity(self):
         K = QtCore.Qt.Key

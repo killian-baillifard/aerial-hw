@@ -17,7 +17,7 @@ MODELS = {
     # Add / remove entries freely – dict key becomes the column header
 }
 
-TEST_FOLDER = "test/2026-05-24-01-09-57"
+TEST_FOLDER = "test/2026-05-23-23-26-58"
 BATCH_SIZE  = 4
 
 # Inference settings

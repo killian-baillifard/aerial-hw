@@ -11,7 +11,7 @@ from app.telemetry import Telemetry
 from app.planner import Planner
 from app.planner.scan_killian1 import ScanKillian1
 from app.planner.scan_killian2 import ScanKillian2
-from app.planner.scan_killian1_edge_cases import ScanKillian1 as ScanKillianEdge
+from app.planner.scan_killian1_fixed_pts import ScanKillian1 as ScanKillianFixed
 #from app.planner.scan_vincent import ScanVincent
 from app.planner.race import Race
 from app.telemetry.recorder import Recorder
@@ -34,7 +34,7 @@ class App:
         self.planners: dict[str, Planner] = {
             "SCAN KIL1": ScanKillian1(),
             "SCAN KIL2": ScanKillian2(),
-            "SCAN Edge KIL": ScanKillianEdge(),
+            "SCAN Fixed KIL": ScanKillianFixed(),
             #"SCAN VIN": ScanVincent(),
             "RACE SLOW": Race(speed=0.25),
             "RACE MID": Race(speed=0.5),
