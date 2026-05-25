@@ -23,7 +23,7 @@ class ScanKillian1(Planner):
     SCAN_YAWS = [-45, 0, 75, 145, 180, 180]
     SCAN_Z = 1.3
     INITIAL_SETPOINT = Setpoint(Planner.HOME_POSITION, np.deg2rad(SCAN_YAWS[0]))
-    STABILIZATION_TIMEOUT = 4.0 # s
+    STABILIZATION_TIMEOUT = 5.0 # s
     GATE_PASS_DIST = 0.10 # m
 
     class State(Enum):
