@@ -237,6 +237,10 @@ def build_trajectory_room_coords(poses: np.ndarray):
         x_room  = DRONE_ORIGIN_XY[0] + x
         y_room  = DRONE_ORIGIN_XY[1] + y
 
+
+        # pre_shift  = pre_shift  if pre_shift  > 0 else 0.0
+
+
         wps.append([x_room - APPROACH_DIST * dx, y_room - APPROACH_DIST * dy, z - 0.5 * pre_shift])
         types.append("pre")
 
@@ -804,7 +808,7 @@ def run_simulation(planner: RacerPolynom, poses: np.ndarray, duration: float | N
     start_pos = glm.vec3(float(HOME_XY[0]), float(HOME_XY[1]), start_z)
     print(f"DEBUG: sim start_pos={start_pos}, planner.hover_setpoint={planner.hover_setpoint}")
     meas = Measurement(timestamp=0.0, position=start_pos, rotation=glm.vec3(0.0, 0.0, 0.0), battery=1.0)
-
+ 
     total_time = duration if duration is not None else planner.race_time
     total_ticks = int(np.ceil(total_time / SIM_DT)) + 1
 
@@ -893,10 +897,10 @@ if __name__ == "__main__":
     poses = load_gates_csv(GATES_CSV, home_xy=_HOME_DRONE_XY)
     gates = poses_to_gates(poses)
     wps, types = build_trajectory_room_coords(poses)
-    print_gate_table(gates, wps, types)
-    plot_arena(gates, wps, types)
+    # print_gate_table(gates, wps, types)
+    # plot_arena(gates, wps, types)
 
-    planner = RacerPolynom(race_time=12.0)
+    planner = RacerPolynom(race_time=10.0)
     sim_pos, plan_pos = run_simulation(planner, poses)
     # show simulation overlay on the same arena figure
     plot_arena(gates, wps, types, sim_pos=sim_pos, plan_pos=plan_pos)

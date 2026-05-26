@@ -11,8 +11,8 @@ from app.telemetry import Telemetry
 from app.planner.racer_z_params import compute_z_shift
 
 
-ENABLE_TAS_REF_ANGLE = False
-DEFAULT_RACE_TIME = 30.0  # seconds — single source of truth, also read by visulazitaion_v3.0.py
+ENABLE_TAS_REF_ANGLE = True
+DEFAULT_RACE_TIME = 20.0  # seconds — single source of truth, also read by visulazitaion_v3.0.py
 
 
 class RacerPolynom(Planner):
@@ -132,18 +132,24 @@ class RacerPolynom(Planner):
         """
 
         # safe with 0.6, 0.5, 0.3, 15s or 0.85, 0.6, 0.3, 15s
-        FEEDFORWARD = 0.5 # 0.4   # 0 = pure pursuit, 1 = pure tangent follow
-        CROSS_GAIN  = 0.0   # cross-track error correction strength
-        SMOOTH = 0.0  # 0 = no smoothing, higher = more inertia
+        FEEDFORWARD = 0.2 # 0.4   # 0 = pure pursuit, 1 = pure tangent follow
+        CROSS_GAIN  = 0.9   # cross-track error correction strength
+        SMOOTH = 0.5  # 0 = no smoothing, higher = more inertia
 
         # 20s: 0.85, 0.6, 0.3
         # 15s: 0.6, 0.5, 0.2
         # 12s: 0.4, 0.6, 0.0
         # 10s:
 
+        CATCHUP_DIST = 0.5  # distance at which to start slowing down to catch up to the trajectory, metres
+
         error    = setpoint.position - measurement.position   # vec3
         dist_xy  = glm.length(error.xy)
         speed    = glm.length(velocity.xy)                    # scalar, metres per step
+
+        dist_3d = glm.length(error)
+        speed_scale = np.clip(dist_3d / CATCHUP_DIST, 0.5, 1.0)  # never stop completely
+
 
         # --- Heading ---
         # Follow the trajectory tangent when moving, fall back to position error when slow
@@ -173,13 +179,14 @@ class RacerPolynom(Planner):
         if self._last_dir is not None:
             raw_dir = glm.normalize((1.0 - SMOOTH) * raw_dir + SMOOTH * self._last_dir)
         self._last_dir = raw_dir
-        step_xy = speed * raw_dir
+
+        step_xy = speed * raw_dir * speed_scale
 
         # --- Output setpoint ---
         next_pos = glm.vec3(
             measurement.position.x + step_xy.x,
             measurement.position.y + step_xy.y,
-            setpoint.position.z + velocity.z * 0,
+            setpoint.position.z + velocity.z * 0.0,
         )
 
         if dist_xy >= Planner.POS_TOL:
@@ -242,6 +249,8 @@ class RacerPolynom(Planner):
             pre_pos  = gate.position - normal
             post_pos = gate.position + normal
 
+            # pre_shift  = pre_shift  if pre_shift  > 0 else 0.0
+
             self.waypoints.append(Setpoint(glm.vec3(pre_pos.x,  pre_pos.y,  gate.position.z - 0.5 * pre_shift),  gate.yaw))
             self.waypoints.append(Setpoint(gate.position, gate.yaw))
             self.waypoints.append(Setpoint(glm.vec3(post_pos.x, post_pos.y, gate.position.z + 0.5 * post_shift), gate.yaw))
@@ -284,5 +293,5 @@ class RacerPolynom(Planner):
             return self.hover_setpoint
 
         trajectory_setpoint, trajectory_velocity = self._eval(self.elapsed)
-        # setpoint, _ = self.reach_velocity(trajectory_setpoint, measurement, trajectory_velocity)
+        setpoint, _ = self.reach_velocity(trajectory_setpoint, measurement, trajectory_velocity)
         return trajectory_setpoint

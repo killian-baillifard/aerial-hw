@@ -22,14 +22,14 @@ class ScanKillian1(Planner):
 
     SCAN_Z = 1.3
     SCAN_PTS = [
-        Setpoint(glm.vec3(-0.32, -0.25, SCAN_Z), np.deg2rad(-25)),
-        Setpoint(glm.vec3(1.00, -1.00, SCAN_Z), np.deg2rad(20)),
-        Setpoint(glm.vec3(2.34, -1.00, SCAN_Z), np.deg2rad(95)),
-        Setpoint(glm.vec3(2.53, 0.54, SCAN_Z), np.deg2rad(175)),
-        Setpoint(glm.vec3(1.31, 1.05, SCAN_Z), np.deg2rad(-155)),
+        Setpoint(glm.vec3(-0.28, -0.25, SCAN_Z), np.deg2rad(-25)),
+        Setpoint(glm.vec3(0.95, -1.00, SCAN_Z), np.deg2rad(20)),
+        Setpoint(glm.vec3(2.34, -1.00, SCAN_Z), np.deg2rad(100)),
+        Setpoint(glm.vec3(2.58, 0.54, SCAN_Z), np.deg2rad(175)),
+        Setpoint(glm.vec3(1.36, 1.05, SCAN_Z), np.deg2rad(-155)),
     ]
     INITIAL_SETPOINT = Setpoint(Planner.HOME_POSITION, np.deg2rad(-45))
-    STABILIZATION_TIMEOUT = 2.0 # s
+    STABILIZATION_TIMEOUT = 4.0 # s
     GATE_PASS_DIST = 0.10 # m
 
     class State(Enum):
@@ -152,7 +152,7 @@ class ScanKillian1(Planner):
                     gate = gates[0]
 
                     # Compute next waypoint
-                    target_yaw = np.deg2rad(ScanKillian1.SCAN_YAWS[len(self.waypoints)])
+                    target_yaw = gate.yaw
                     target_position = gate.position + gate.normal * (ScanKillian1.GATE_PASS_DIST + 0.05)
                     next_setpoint = Setpoint(target_position, target_yaw)
 

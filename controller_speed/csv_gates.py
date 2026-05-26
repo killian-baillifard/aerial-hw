@@ -9,7 +9,7 @@ import numpy as np
 #                measured from the +x axis (as provided by the competition).
 #                The approach yaw = wrap(theta - pi/2), with the ±pi/2 ambiguity
 #                resolved by the approach vector from the previous waypoint.
-GATE_SOURCE = "LAB_TEST"
+GATE_SOURCE = "LAB_EXAM"
 
 
 def _wrap(angle):
@@ -66,7 +66,7 @@ def load_gates_csv(csv_path, home_xy=(0.0, 0.0)):
         if GATE_SOURCE == "LAB_TEST":
             yaw = _wrap(float(theta))
         else:  # LAB_EXAM
-            yaw = _resolve_yaw(theta, prev_xy, gate_xy)
+            yaw = _wrap(float(theta - np.pi))
 
         poses[i] = [x, y, z, yaw, width, height]
         prev_xy = gate_xy
